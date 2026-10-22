@@ -25,6 +25,17 @@ image ──► forensics.py ──────────────► signa
 6. **Hard rules the LLM can't override**: AI-generator metadata forces an "AI-generated" verdict; agreeing pixel tests and edit metadata set minimum scores; without the LLM, pixel tests alone can never produce a "fake" verdict.
 7. **Verdict**: manipulation score 0–100, type (AI-generated, face swap, spliced region, edited document, retouched), confidence, findings, limitations and next steps. The lowest band is "no evidence of manipulation found", never "authentic", because forensics can't prove a negative.
 
+## Evidence-grade extras (inspired by Sherloq, c2patool and forenix-oss)
+
+Techniques from [Sherloq](https://github.com/GuidoBartoli/sherloq), [c2patool](https://github.com/contentauth/c2patool) and [forenix-oss](https://github.com/thunderstornX/forenix-oss), re-implemented in TrustLens (no code copied; Sherloq is GPL):
+
+- **Chain of custody** (forenix): every analysis, VTOP check and report export goes into `custody_log.jsonl`, a SHA-256 hash-chained log. Editing, deleting or reordering any entry breaks the chain. Verify independently: `python custody.py verify`.
+- **Embedded thumbnail analysis** (Sherloq): cameras store a small preview inside the file; editors often change the photo but not the preview. Caught 3/3 edited test photos and pointed at the edited area; medium hints on 2 of 37 authentic camera test files.
+- **GPS location** (Sherloq) from EXIF, with a privacy note.
+- **Perceptual hashes** (Sherloq file digest): pHash/dHash/aHash match re-saved or resized copies of the same picture even when the SHA-256 differs.
+- **Find the original online** (Sherloq similar search): links to Google Lens, Bing, TinEye and Yandex.
+- **Content Credentials reading** (c2patool): declared source type, actions, signer and SynthID watermark (signature verification not implemented yet).
+
 ## Campus check: notices vs official VTOP records
 
 Forged circulars and WhatsApp forwards ("DBMS FAT postponed to 20-Nov!") are digital evidence too. For a notice or screenshot, TrustLens:
@@ -97,6 +108,7 @@ TrustLens includes a curated dataset of photorealistic AI-generated faces and mo
 |---|---|
 | `forensics.py` | Hash, metadata, ELA, noise and JPEG checks (Pillow + numpy only) |
 | `evidence_analyser.py` | Combines forensics, detector and vision LLM; hard rules; verdict |
+| `custody.py` | Hash-chained chain-of-custody log and offline verifier |
 | `report.py` | Self-contained HTML evidence report (print to PDF) and JSON export |
 | `app.py` | Streamlit interface |
 | `campus_check.py` | Notice claims vs official VTOP records (cli-top) |

@@ -14,6 +14,7 @@ import streamlit as st
 from PIL import Image
 
 import campus_check
+import custody
 import event_check
 import evidence_analyser as ea
 from report import build_report_html, result_to_json
@@ -54,7 +55,8 @@ with st.sidebar:
         tag = ("Tampered (CASIA)" if p.name.startswith("Tp_") else "Authentic" if p.name.startswith("Au_")
                else "AI-generated" if p.name.startswith("AI_") else "Forged notice (demo)" if p.name.startswith("Forged_")
                else "Notice (demo)" if p.name.startswith("Notice_")
-               else "Event poster (demo)" if p.name.startswith("Event_") else "Sample")
+               else "Event poster (demo)" if p.name.startswith("Event_")
+               else "Edited photo (demo)" if p.name.startswith("Edited_") else "Sample")
         labels[f"{tag} · {p.name[:28]}"] = p
     choice = st.selectbox("Pick a sample", list(labels))
 
@@ -87,6 +89,9 @@ if st.session_state.get("key") != cache_key:
         try:
             st.session_state["result"] = ea.analyse(data, name, use_llm=use_llm)
             st.session_state["key"] = cache_key
+            res = st.session_state["result"]
+            custody.record("analysed", sha, {"file": name, "verdict": res["verdict"],
+                                             "score": res["manipulation_score"], "tool": res["tool_version"]})
         except ValueError as e:
             st.error(str(e))
             st.stop()
@@ -152,6 +157,7 @@ else:
             try:
                 check = campus_check.run_campus_check(data, live=live)
                 st.session_state["result"] = campus_check.apply_to_result(r, check)
+                custody.record("vtop_notice_check", sha, {"overall": check["overall"], "source": check["data_source"]})
                 st.rerun()
             except Exception as e:
                 st.error(f"Campus check failed: {type(e).__name__}: {str(e)[:200]}")
@@ -187,6 +193,8 @@ else:
         with st.spinner("Reading the poster, searching for the official event and checking links..."):
             try:
                 r["event_check"] = event_check.run_event_check(data, live_vtop=live_ev)
+                custody.record("event_check", sha, {"verdict": r["event_check"]["verdict"],
+                                                    "event": r["event_check"]["event"]["event_name"]})
                 st.session_state["result"] = r
             except Exception as e:
                 st.error(f"Event check failed: {type(e).__name__}: {str(e)[:200]}")
@@ -245,6 +253,41 @@ with t4:
     st.markdown(f"**SHA-256:** `{i['sha256']}`  \n**MD5:** `{i['md5']}`  \n"
                 f"**Size:** {i['size_bytes']:,} bytes · **Format:** {i['format']} {i['width']}×{i['height']}  \n"
                 f"**Analysed:** {i['analysed_at']} · {r['tool_version']}")
+    ph = i.get("perceptual") or {}
+    if ph:
+        st.markdown(f"**Perceptual hashes** (match re-saved or resized copies of the same picture): "
+                    f"pHash `{ph['phash']}` · dHash `{ph['dhash']}` · aHash `{ph['ahash']}`")
+    if r.get("gps"):
+        g = r["gps"]
+        st.markdown(f"**GPS location in file:** {g['lat']}, {g['lon']} · [open map]({g['map']})  \n"
+                    "_Personal data: share the original file with care._")
+    if r.get("thumbnail") and imgs.get("thumbnail") is not None:
+        tc1, tc2 = st.columns([1, 3])
+        tc1.image(imgs["thumbnail"], caption="Camera preview stored inside the file")
+        th = r["thumbnail"]
+        tc2.markdown("**Embedded thumbnail check:** cameras save a small preview inside the photo; editors often "
+                     "change the photo but not the preview.  \n"
+                     + (f"Area that differs from the preview: `{th['changed_region']}`" if th.get("changed_region")
+                        else f"Largest local difference: {th.get('max_local_difference', 'n/a')} "
+                             f"(edited areas measured 31–115 in testing)."))
+
+    st.markdown("**Find the original online** (upload this image on any of these): "
+                "[Google Lens](https://lens.google.com/) · [Bing Visual Search](https://www.bing.com/visualsearch) · "
+                "[TinEye](https://tineye.com/) · [Yandex Images](https://yandex.com/images/)")
+
+    chain = custody.verify()
+    hist = custody.history(sha)
+    st.markdown("**Chain of custody** (tamper-evident, SHA-256 hash-chained log)")
+    if chain["ok"]:
+        st.success(f"Log verified: {chain['entries']} entries, chain intact. Head hash `{(chain['head'] or '')[:16]}…`")
+    else:
+        st.error(f"Custody log broken: {chain['problem']}")
+    if hist:
+        st.table({"#": [e["seq"] for e in hist], "Time (UTC)": [e["time"] for e in hist],
+                  "Action": [e["action"] for e in hist],
+                  "Entry hash": [e["entry_hash"][:16] + "…" for e in hist]})
+    st.caption("Verify independently: `python custody.py verify`")
+
     st.write("Check that a file is the exact one in this report:")
     other = st.file_uploader("File to verify", key="verify")
     if other is not None:
@@ -263,7 +306,10 @@ for a in r["recommended_actions"]:
 
 st.divider()
 d1, d2 = st.columns(2)
+r["custody"] = {"chain": custody.verify(), "history": custody.history(sha)}
 d1.download_button("⬇ Download evidence report (HTML, print to PDF)", build_report_html(r),
-                   file_name=f"trustlens_report_{sha[:12]}.html", mime="text/html")
+                   file_name=f"trustlens_report_{sha[:12]}.html", mime="text/html",
+                   on_click=custody.record, args=("report_exported", sha, {"format": "html"}))
 d2.download_button("⬇ Download raw results (JSON)", result_to_json(r),
-                   file_name=f"trustlens_result_{sha[:12]}.json", mime="application/json")
+                   file_name=f"trustlens_result_{sha[:12]}.json", mime="application/json",
+                   on_click=custody.record, args=("report_exported", sha, {"format": "json"}))

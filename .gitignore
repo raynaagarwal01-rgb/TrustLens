@@ -7,3 +7,4 @@ venv/
 .DS_Store
 .trustlens_cache.json
 snapshots/
+custody_log.jsonl

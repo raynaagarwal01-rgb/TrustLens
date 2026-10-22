@@ -24,7 +24,7 @@ import io
 import re
 
 import numpy as np
-from PIL import ExifTags, Image, ImageDraw, ImageOps
+from PIL import ExifTags, Image, ImageDraw, ImageFilter, ImageOps
 
 Image.MAX_IMAGE_PIXELS = 80_000_000  # refuse decompression bombs above ~80 MP
 
@@ -383,6 +383,131 @@ def _overlap(a, b):
     return inter / smaller if smaller else 0.0
 
 # ---------------------------------------------------------------------------
+# Perceptual hashes, GPS, embedded thumbnail (techniques from Sherloq's tool list; own implementation)
+# ---------------------------------------------------------------------------
+
+def _dct_matrix(n: int) -> np.ndarray:
+    k = np.arange(n)
+    m = np.cos(np.pi * (2 * k[None, :] + 1) * k[:, None] / (2 * n)) * np.sqrt(2 / n)
+    m[0] /= np.sqrt(2)
+    return m
+
+
+def perceptual_hashes(img: Image.Image) -> dict:
+    """aHash / dHash / pHash: stay the same when an image is re-saved or resized, so a re-shared
+    copy of the same picture can be matched even though its SHA-256 differs."""
+    g = img.convert("L")
+    a = np.asarray(g.resize((8, 8), Image.LANCZOS), float)
+    d = np.asarray(g.resize((9, 8), Image.LANCZOS), float)
+    p = np.asarray(g.resize((32, 32), Image.LANCZOS), float)
+    m = _dct_matrix(32)
+    low = (m @ p @ m.T)[:8, :8]
+
+    def bits(b):
+        return f"{int(''.join('1' if x else '0' for x in b.flatten()), 2):016x}"
+    return {"ahash": bits(a > a.mean()), "dhash": bits(d[:, 1:] > d[:, :-1]),
+            "phash": bits(low > np.median(low[1:, 1:]))}
+
+
+def hash_distance(h1: str, h2: str) -> int:
+    return bin(int(h1, 16) ^ int(h2, 16)).count("1")
+
+
+def _ratio(v) -> float:
+    try:
+        return float(v)
+    except TypeError:
+        return v[0] / v[1] if v[1] else 0.0
+
+
+def gps_location(img: Image.Image) -> dict | None:
+    try:
+        g = img.getexif().get_ifd(0x8825)
+    except Exception:
+        return None
+    if not g or 2 not in g or 4 not in g:
+        return None
+    try:
+        def deg(v, ref):
+            x = _ratio(v[0]) + _ratio(v[1]) / 60 + _ratio(v[2]) / 3600
+            return -x if str(ref).upper() in ("S", "W") else x
+        lat, lon = deg(g[2], g.get(1, "N")), deg(g[4], g.get(3, "E"))
+    except Exception:
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or (lat == 0 and lon == 0):
+        return None
+    return {"lat": round(lat, 6), "lon": round(lon, 6),
+            "map": f"https://www.openstreetmap.org/?mlat={lat:.6f}&mlon={lon:.6f}#map=16/{lat:.6f}/{lon:.6f}"}
+
+
+def _embedded_thumbnail(img: Image.Image) -> Image.Image | None:
+    ex = img.info.get("exif") or b""
+    i, j = ex.find(b"\xff\xd8", 6), ex.rfind(b"\xff\xd9")
+    if i < 0 or j <= i:
+        return None
+    try:
+        t = Image.open(io.BytesIO(ex[i:j + 2]))
+        t.load()
+        return t.convert("RGB")
+    except Exception:
+        return None
+
+
+def thumbnail_check(img: Image.Image) -> tuple[dict | None, list[dict], Image.Image | None]:
+    """Cameras store a small preview inside the file. Editors often change the main image but leave
+    the preview untouched, so the preview can still show what the photo looked like before."""
+    t = _embedded_thumbnail(img)
+    if t is None or min(img.size) < 200:
+        return None, [], None
+    a = np.asarray(t.convert("L"), float)
+    rows, cols = np.where(a.mean(1) > 12)[0], np.where(a.mean(0) > 12)[0]
+    if len(rows) > 4 and len(cols) > 4:  # trim black letterbox bars
+        t = t.crop((int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1))
+    ar_m, ar_t = img.width / img.height, t.width / t.height
+    ar_diff = abs(ar_m - ar_t) / ar_m
+    stats = {"thumbnail_size": list(t.size), "shape_difference": round(ar_diff, 3)}
+    signals = []
+    if abs(ar_m * ar_t - 1) < 0.08 and ar_diff > 0.15:
+        stats["note"] = "thumbnail is rotated relative to the image"
+        return stats, [_signal("Embedded thumbnail rotated", "info",
+                               "The camera preview is rotated relative to the image; it was not compared.", "none")], t
+    if ar_diff > 0.15:
+        signals.append(_signal("Image cropped after capture", "medium",
+                               f"The camera's embedded preview has a different shape ({t.width}x{t.height}) from the "
+                               f"image ({img.width}x{img.height}), so the picture was cropped after it was taken.", "edited"))
+        return stats, signals, t
+
+    def gray(im):
+        return np.asarray(im.convert("L").filter(ImageFilter.BoxBlur(1)), float)
+    gm, gt = gray(img.convert("RGB").resize(t.size, Image.LANCZOS)), gray(t)
+    gt = (gt - gt.mean()) / (gt.std() + 1e-6) * gm.std() + gm.mean()  # ignore brightness/contrast differences
+    diff = np.abs(gm - gt)
+    b = max(4, min(t.size) // 12)
+    hb, wb = diff.shape[0] // b, diff.shape[1] // b
+    blocks = diff[:hb * b, :wb * b].reshape(hb, b, wb, b).mean(axis=(1, 3))
+    med, mx = float(np.median(blocks)), float(blocks.max())
+    stats.update({"median_difference": round(med, 1), "max_local_difference": round(mx, 1)})
+    if med > 20:
+        signals.append(_signal("Embedded thumbnail doesn't match", "medium",
+                               "The camera's preview stored in the file looks different from the image overall. "
+                               "The image may have been heavily edited or the preview replaced.", "edited"))
+    elif mx >= 30 and mx / (med + 2) >= 6:
+        hot = blocks >= max(30, 0.5 * mx)
+        ys, xs = np.nonzero(hot)
+        sx, sy = img.width / t.width, img.height / t.height
+        box = [int(xs.min() * b * sx), int(ys.min() * b * sy), int((xs.max() + 1) * b * sx), int((ys.max() + 1) * b * sy)]
+        stats["changed_region"] = box
+        signals.append(_signal("Embedded thumbnail shows the original", "high",
+                               f"The small preview the camera stored inside the file differs from the image in the area "
+                               f"at {box}. The preview was not updated when that area was edited, so it shows the "
+                               "picture before the change.", "edited"))
+    else:
+        signals.append(_signal("Embedded thumbnail matches", "info",
+                               "The camera's stored preview matches the image, so no visible area was changed after "
+                               "the preview was created.", "none"))
+    return stats, signals, t
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -398,6 +523,21 @@ def analyse_image(data: bytes, filename: str = "upload") -> dict:
 
     integ = integrity(data, filename, img)
     meta, signals = metadata(data, img)
+    try:
+        integ["perceptual"] = perceptual_hashes(img)
+    except Exception:
+        integ["perceptual"] = {}
+    location = gps_location(img)
+    if location:
+        signals.append(_signal("GPS location recorded", "info",
+                               f"The file records where it was taken: {location['lat']}, {location['lon']}. "
+                               "Useful for checking a claimed place; also personal data, so share the file with care.",
+                               "none"))
+    try:
+        thumb_stats, thumb_signals, thumb_img = thumbnail_check(img)
+    except Exception:
+        thumb_stats, thumb_signals, thumb_img = None, [], None
+    signals += thumb_signals
     quality = jpeg_quality(img) if fmt == "JPEG" else None
 
     work = img_oriented.convert("RGB")
@@ -448,6 +588,8 @@ def analyse_image(data: bytes, filename: str = "upload") -> dict:
         "ela": ela_stats,
         "noise": noise_stats,
         "region_agreement": round(agree, 2),
+        "gps": location,
+        "thumbnail": thumb_stats,
         "signals": signals,
-        "images": {"original": work, "ela": ela_img, "noise": noise_img},
+        "images": {"original": work, "ela": ela_img, "noise": noise_img, "thumbnail": thumb_img},
     }

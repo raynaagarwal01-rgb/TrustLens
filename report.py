@@ -60,6 +60,36 @@ def _event_section(r: dict) -> str:
             + (f"<p>Official sources found:</p><ul>{urls}</ul>" if urls else ""))
 
 
+def _extra_integrity(r: dict) -> str:
+    rows = ""
+    ph = r["integrity"].get("perceptual") or {}
+    if ph:
+        rows += f"<tr><td>Perceptual hashes</td><td><code>pHash {ph['phash']} · dHash {ph['dhash']} · aHash {ph['ahash']}</code></td></tr>"
+    if r.get("gps"):
+        g = r["gps"]
+        rows += f"<tr><td>GPS location</td><td>{g['lat']}, {g['lon']} (personal data)</td></tr>"
+    th = r.get("thumbnail")
+    if th:
+        rows += (f"<tr><td>Embedded thumbnail</td><td>{th['thumbnail_size'][0]}x{th['thumbnail_size'][1]}"
+                 + (f"; differs from the image at {th['changed_region']}" if th.get("changed_region") else "")
+                 + (f"; {_e(th['note'])}" if th.get("note") else "") + "</td></tr>")
+    return rows
+
+
+def _custody_section(r: dict) -> str:
+    c = r.get("custody")
+    if not c:
+        return ""
+    chain = c["chain"]
+    rows = "".join(f"<tr><td>{e['seq']}</td><td>{_e(e['time'])}</td><td>{_e(e['action'])}</td>"
+                   f"<td><code>{e['entry_hash'][:24]}…</code></td></tr>" for e in c["history"])
+    status = (f"Chain intact ({chain['entries']} entries). Head hash: <code>{chain['head']}</code>" if chain["ok"]
+              else f"<b>Chain broken:</b> {_e(chain['problem'])}")
+    return (f"<h3>Chain of custody</h3><p class='muted'>Every action on this file is recorded in a SHA-256 "
+            f"hash-chained log; changing, deleting or reordering any entry breaks the chain. {status}</p>"
+            f"<table><tr><th>#</th><th>Time (UTC)</th><th>Action</th><th>Entry hash</th></tr>{rows}</table>")
+
+
 def build_report_html(r: dict) -> str:
     i = r["integrity"]
     colour = VERDICT_COLOUR.get(r["verdict"], "#555")
@@ -115,7 +145,9 @@ def build_report_html(r: dict) -> str:
  <tr><td>Size</td><td>{i['size_bytes']:,} bytes</td></tr>
  <tr><td>Format</td><td>{_e(i['format'])}, {i['width']} × {i['height']} px, {_e(i['mode'])}{f", JPEG quality ≈ {r['jpeg_quality']}" if r['jpeg_quality'] else ''}</td></tr>
  <tr><td>Analysed at</td><td>{_e(i['analysed_at'])}</td></tr>
+ {_extra_integrity(r)}
 </table>
+{_custody_section(r)}
 <p class="muted">The file was analysed read-only. Anyone can confirm they hold the same file by computing its
 SHA-256 hash (e.g. <code>certutil -hashfile file SHA256</code> on Windows, <code>sha256sum file</code> on Linux/macOS) and comparing it with the value above.</p>
 

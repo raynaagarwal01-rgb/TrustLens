@@ -189,6 +189,13 @@ def hard_rules(fx: dict, det: dict) -> tuple[int, str | None, list[str]]:
     if "Two independent tests flag the same region" in checks:
         # no minimum score: the noise map is experimental, and this fired on a real photo in testing
         ftype = ftype or "spliced_or_object_edited"
+    if "Embedded thumbnail shows the original" in checks:
+        floor = max(floor, 75)
+        ftype = ftype or "spliced_or_object_edited"
+        notes.append("The camera's embedded preview shows a different version of part of the image.")
+    if "Image cropped after capture" in checks:
+        floor = max(floor, 30)
+        ftype = ftype or "retouched"
     if "Editing software recorded" in checks or "Modified after capture" in checks:
         floor = max(floor, 30)
         ftype = ftype or "retouched"
@@ -289,6 +296,8 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
         ],
         "detector": det,
         "integrity": fx["integrity"],
+        "gps": fx.get("gps"),
+        "thumbnail": fx.get("thumbnail"),
         "metadata": fx["metadata"],
         "jpeg_quality": fx["jpeg_quality"],
         "ela": fx["ela"],

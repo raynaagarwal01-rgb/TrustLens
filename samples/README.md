@@ -10,6 +10,7 @@
 | `Notice_original_demo.jpg` | The same notice before the edit, matching the official date | same |
 | `Event_fake_hackathon_demo.jpg` | Demo scam poster: unknown "national hackathon", ₹499 fee to a UPI ID, WhatsApp payment proof, .xyz registration link, "last date today" | Made for TrustLens testing; fictional event, labelled as a demo |
 | `vtop_demo/exams.txt` | cli-top exam-schedule output used when no live VTOP snapshot exists | cli-top |
+| `Edited_iphone_photo_demo.jpg` | `Au_iphone_photo.jpg` with an area cloned over another, saved with the original camera metadata: its embedded thumbnail still shows the unedited scene | Made for TrustLens testing |
 | `Au_jolla_phone_photo.jpg` | Authentic, unedited phone photo | [ianare/exif-samples](https://github.com/ianare/exif-samples) (`jpg/mobile/jolla.jpg`) |
 
 CASIA v2.0: J. Dong, W. Wang, T. Tan, "CASIA Image Tampering Detection Evaluation Database", ChinaSIP 2013. Used here for research/demo purposes with credit.
