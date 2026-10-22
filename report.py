@@ -90,6 +90,30 @@ def _custody_section(r: dict) -> str:
             f"<table><tr><th>#</th><th>Time (UTC)</th><th>Action</th><th>Entry hash</th></tr>{rows}</table>")
 
 
+def _figures(r: dict) -> str:
+    imgs = r["images"]
+    kind = r.get("media_kind", "image")
+    items = {"image": [("original", "Image under analysis"),
+                       ("ela", "Error-level analysis (bright = reacts to re-compression; box = most anomalous region)"),
+                       ("faces", "Faces found (each sent to the AI review as a close-up)"),
+                       ("noise", "Noise consistency map, experimental (smooth areas such as sky often light up; weak hint only)")],
+             "video": [("sheet", "Frames sampled across the video"), ("original", f"Key frame {(r.get('video') or {}).get('key_frame', '')}"),
+                       ("faces", "Faces found on the key frame")],
+             "audio": [("original", "Spectrogram (time left to right, pitch bottom to top)"), ("waveform", "Waveform (loudness over time)")]}[kind]
+    return "".join(f'<figure><img src="{_img(imgs[k])}"><figcaption class="muted">{_e(c)}</figcaption></figure>'
+                   for k, c in items if imgs.get(k) is not None)
+
+
+def _summary_section(r: dict) -> str:
+    sm = r.get("summary")
+    if not sm:
+        return ""
+    en = "".join(f"<li>{_e(x)}</li>" for x in sm.get("en", []))
+    hi = "".join(f"<li>{_e(x)}</li>" for x in sm.get("hi", []))
+    return (f"<h2>In short</h2><div class='grid'><div><ol>{en}</ol></div>"
+            f"<div lang='hi' style=\"font-family:'Nirmala UI','Noto Sans Devanagari','Mangal',sans-serif\"><ol>{hi}</ol></div></div>")
+
+
 def build_report_html(r: dict) -> str:
     i = r["integrity"]
     colour = VERDICT_COLOUR.get(r["verdict"], "#555")
@@ -127,15 +151,16 @@ def build_report_html(r: dict) -> str:
  @media print{{.noprint{{display:none}}}}
 </style></head><body>
 <h1>TrustLens Evidence Report</h1>
-<div class="muted">{_e(r['tool_version'])} · generated {_e(i['analysed_at'])}</div>
+<div class="muted">{_e(r['tool_version'])} · generated {_e(i.get('analysed_at', ''))} · a signed PDF version with a verification QR code is available from TrustLens</div>
 
 <div class="verdict">
- <div class="label">{_e(r['verdict_label'])}</div>
+ <div class="label">{_e(r.get('headline') or r['verdict_label'])}</div>
  <div>Manipulation score <b>{r['manipulation_score']}/100</b> · Type: <b>{_e(r['fake_type_label'])}</b> ·
  Confidence: <b>{_e(r['confidence'])}</b>{' · AI visual analysis used' if r['llm_used'] else ' · forensic tests only (AI analysis unavailable)'}</div>
  <p>{_e(r['explanation'])}</p>
  {f'<b>Rules applied:</b><ul>{rules}</ul>' if rules else ''}
 </div>
+{_summary_section(r)}
 
 <h2>1. Evidence integrity (chain of custody)</h2>
 <table>
@@ -143,8 +168,8 @@ def build_report_html(r: dict) -> str:
  <tr><td>SHA-256</td><td><code>{i['sha256']}</code></td></tr>
  <tr><td>MD5</td><td><code>{i['md5']}</code></td></tr>
  <tr><td>Size</td><td>{i['size_bytes']:,} bytes</td></tr>
- <tr><td>Format</td><td>{_e(i['format'])}, {i['width']} × {i['height']} px, {_e(i['mode'])}{f", JPEG quality ≈ {r['jpeg_quality']}" if r['jpeg_quality'] else ''}</td></tr>
- <tr><td>Analysed at</td><td>{_e(i['analysed_at'])}</td></tr>
+ <tr><td>Format</td><td>{_e(i['format'])}, {i['width']} × {i['height']} px{(', ' + _e(i['mode'])) if i.get('mode') else ''}{f", JPEG quality ≈ {r['jpeg_quality']}" if r.get('jpeg_quality') else ''}</td></tr>
+ <tr><td>Analysed at</td><td>{_e(i.get('analysed_at', ''))}</td></tr>
  {_extra_integrity(r)}
 </table>
 {_custody_section(r)}
@@ -159,16 +184,14 @@ SHA-256 hash (e.g. <code>certutil -hashfile file SHA256</code> on Windows, <code
 <table><tr><th>Severity</th><th>Test</th><th>Result</th></tr>{signals}</table>
 <p class="muted">Pretrained detector: {det_line}</p>
 <div class="grid">
- <figure><img src="{_img(imgs['original'])}"><figcaption class="muted">Image under analysis</figcaption></figure>
- <figure><img src="{_img(imgs['ela'])}"><figcaption class="muted">Error-level analysis (bright = reacts to re-compression; box = most anomalous region)</figcaption></figure>
- <figure><img src="{_img(imgs['noise'])}"><figcaption class="muted">Noise consistency map, experimental (smooth areas such as sky often light up; weak hint only)</figcaption></figure>
+ {_figures(r)}
 </div>
 
 {_official_section(r)}
 {_event_section(r)}
 <h2>4. Metadata</h2>
 <table>{exif_rows}{text_rows}</table>
-<p class="muted">XMP present: {r['metadata']['xmp_present']} · Content Credentials (C2PA) present: {r['metadata']['c2pa_present']}</p>
+<p class="muted">XMP present: {r['metadata'].get('xmp_present', False)} · Content Credentials (C2PA) present: {bool(r['metadata'].get('c2pa_present') or r['metadata'].get('c2pa'))}</p>
 
 <h2>5. Limitations</h2><ul>{limits}</ul>
 <h2>6. Recommended actions</h2><ul>{actions}</ul>

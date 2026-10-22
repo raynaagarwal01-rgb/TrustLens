@@ -7,6 +7,7 @@ type TabId = "findings" | "tests" | "metadata" | "provenance" | "campus" | "cust
 
 interface Props {
   result: CaseResult;
+  aiOn: boolean;
   onResult: (r: CaseResult) => void;
   onError: (msg: string) => void;
   onInfo: (msg: string) => void;
@@ -16,14 +17,15 @@ const ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2, info: 3 };
 const bySeverity = (a: { severity: Severity }, b: { severity: Severity }) => ORDER[a.severity] - ORDER[b.severity];
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-export function Details({ result, onResult, onError, onInfo }: Props) {
+export function Details({ result, aiOn, onResult, onError, onInfo }: Props) {
   const [tab, setTab] = useState<TabId>("findings");
+  useEffect(() => { if (result.media_kind === "audio" && tab === "campus") setTab("findings"); }, [result.case.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: "findings", label: "Findings", count: result.forensic_signals.filter((s) => s.severity !== "info").length + result.visual_findings.length },
     { id: "tests", label: "Tests" },
     { id: "metadata", label: "Metadata" },
     { id: "provenance", label: "Provenance" },
-    { id: "campus", label: "Campus checks" },
+    ...(result.media_kind !== "audio" ? [{ id: "campus" as TabId, label: "Context checks" }] : []),
     { id: "custody", label: "Custody & integrity" },
   ];
   return (
@@ -38,10 +40,10 @@ export function Details({ result, onResult, onError, onInfo }: Props) {
       </div>
       <div className="tab-panel" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "findings" && <Findings r={result} />}
-        {tab === "tests" && <Tests r={result} />}
+        {tab === "tests" && (result.media_kind === "image" || !result.media_kind ? <Tests r={result} /> : <MediaTests r={result} />)}
         {tab === "metadata" && <Metadata r={result} />}
         {tab === "provenance" && <Provenance r={result} />}
-        {tab === "campus" && <Campus r={result} onResult={onResult} onError={onError} />}
+        {tab === "campus" && <Campus r={result} aiOn={aiOn} onResult={onResult} onError={onError} />}
         {tab === "custody" && <Custody r={result} onError={onError} onInfo={onInfo} />}
       </div>
     </div>
@@ -70,7 +72,10 @@ function Findings({ r }: { r: CaseResult }) {
           <p><b>Compared with {r.comparison.other_name}:</b> {r.comparison.summary}</p>
         </div>
       )}
-      <section>
+      {r.media_kind === "audio" && <SpeechSection r={r} />}
+      <FacesSection r={r} />
+      {r.video && <FramesSection r={r} />}
+      {r.media_kind !== "audio" && <section>
         <h2>What the AI review saw</h2>
         {r.llm_used ? (
           r.visual_findings.length ? (
@@ -82,11 +87,11 @@ function Findings({ r }: { r: CaseResult }) {
             ))
           ) : <p className="muted">The vision model didn't point to any specific visual artefact.</p>
         ) : (
-          <div className="callout"><p>AI review was off for this case, so only forensic tests ran. Add a Gemini or Groq key
-            before starting the server, then open the image again to get visual findings.</p></div>
+          <div className="callout"><p>AI review was off for this case, so only forensic tests ran. Add your Gemini or Groq key
+            to the <span className="mono">.env</span> file, restart TrustLens, then open the file again to get visual findings.</p></div>
         )}
         {r.heatmap_reading && <p className="muted" style={{ fontSize: 13 }}><b>Reading of the error-level map:</b> {r.heatmap_reading}</p>}
-      </section>
+      </section>}
       <section>
         <h2>Forensic evidence</h2>
         {evidence.length ? evidence.map((s) => <SignalRow key={s.check} s={s} />)
@@ -216,7 +221,7 @@ function Metadata({ r }: { r: CaseResult }) {
       )}
       <div className="split">
         <section>
-          <h2>Camera and file metadata</h2>
+          <h2>{r.media_kind === "image" || !r.media_kind ? "Camera and file metadata" : "File and container metadata"}</h2>
           {exif.length ? (
             <div className="tbl-wrap"><table className="tbl"><tbody>
               {exif.slice(0, 40).map(([k, v]) => <tr key={k}><td className="muted">{k}</td><td>{v}</td></tr>)}
@@ -231,8 +236,8 @@ function Metadata({ r }: { r: CaseResult }) {
             </>
           )}
         </section>
-        <section>
-          <h2>Colour histogram</h2>
+        {r.media_kind !== "audio" && <section>
+          <h2>Colour histogram{r.media_kind === "video" ? " (key frame)" : ""}</h2>
           <Histogram id={r.case.id} />
           {st && (
             <>
@@ -244,9 +249,9 @@ function Metadata({ r }: { r: CaseResult }) {
               </dl>
             </>
           )}
-        </section>
+        </section>}
       </div>
-      {st && (
+      {st && r.media_kind !== "video" && (
         <div className="split">
           <section>
             <h3>File segments</h3>
@@ -312,13 +317,18 @@ function Provenance({ r }: { r: CaseResult }) {
 
 /* ------------------------------------------------------------------ campus checks */
 
-function Campus({ r, onResult, onError }: { r: CaseResult; onResult: (r: CaseResult) => void; onError: (m: string) => void }) {
-  const [busy, setBusy] = useState<"" | "notice" | "event">("");
+type CheckKind = "notice" | "event" | "screenshot" | "reverse";
+
+function Campus({ r, aiOn, onResult, onError }: { r: CaseResult; aiOn: boolean; onResult: (r: CaseResult) => void; onError: (m: string) => void }) {
+  const [busy, setBusy] = useState<"" | CheckKind>("");
   const [live, setLive] = useState(false);
-  const run = async (kind: "notice" | "event") => {
+  const run = async (kind: CheckKind) => {
     setBusy(kind);
     try {
-      onResult(kind === "notice" ? await api.noticeCheck(r.case.id, live) : await api.eventCheck(r.case.id, live));
+      onResult(kind === "notice" ? await api.noticeCheck(r.case.id, live)
+        : kind === "event" ? await api.eventCheck(r.case.id, live)
+        : kind === "screenshot" ? await api.screenshotCheck(r.case.id)
+        : await api.reverseSearch(r.case.id));
     } catch (e) {
       onError((e as Error).message);
     } finally {
@@ -330,17 +340,17 @@ function Campus({ r, onResult, onError }: { r: CaseResult; onResult: (r: CaseRes
   const icon = { confirmed: "✓", contradicted: "✕", not_checked: "?" } as const;
   return (
     <>
-      {!r.llm_used && <div className="callout callout--warn"><p>These checks read the text in the image, which needs AI review. Start the server with a Gemini or Groq key and open the image again.</p></div>}
-      <div className="check-actions">
-        <label className="toggle" style={{ color: "inherit" }}>
-          <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Fetch fresh VTOP data with cli-top (slower)
-        </label>
-      </div>
+      {!aiOn && <div className="callout callout--warn"><p>These checks read what the image shows, which needs the AI review. Add your Gemini or Groq key to the <span className="mono">.env</span> file and restart TrustLens.</p></div>}
+      <ReverseSection r={r} busy={busy === "reverse"} disabled={!aiOn || !!busy} onRun={() => run("reverse")} />
+      {r.media_kind !== "video" && <ScreenshotSection r={r} busy={busy === "screenshot"} disabled={!aiOn || !!busy} onRun={() => run("screenshot")} />}
       <section>
         <h2>Is this notice true?</h2>
         <p className="muted" style={{ fontSize: 13 }}>For circulars, exam notices and forwarded announcements: the dated claims are compared with your official VTOP exam schedule, academic calendar and holidays. The date comparison is done by code, not by AI.</p>
         <div className="check-actions">
-          <button className="btn btn--primary" disabled={!r.llm_used || !!busy} onClick={() => run("notice")}>
+          <label className="toggle" style={{ color: "inherit" }}>
+            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Fetch fresh VTOP data with cli-top (slower)
+          </label>
+          <button className="btn btn--primary" disabled={!aiOn || !!busy} onClick={() => run("notice")}>
             {busy === "notice" ? "Checking VTOP records…" : oc ? "Check again" : "Check against VTOP"}
           </button>
         </div>
@@ -364,7 +374,7 @@ function Campus({ r, onResult, onError }: { r: CaseResult; onResult: (r: CaseRes
         <h2>Is this event real?</h2>
         <p className="muted" style={{ fontSize: 13 }}>For hackathon, workshop, fest and internship posters: looks for the event in VTOP club events and on the web, and checks payment details and links for scam signs.</p>
         <div className="check-actions">
-          <button className="btn btn--primary" disabled={!r.llm_used || !!busy} onClick={() => run("event")}>
+          <button className="btn btn--primary" disabled={!aiOn || !!busy} onClick={() => run("event")}>
             {busy === "event" ? "Searching for the event…" : ev ? "Check again" : "Check this event"}
           </button>
         </div>
@@ -441,8 +451,15 @@ function Custody({ r, onError, onInfo }: { r: CaseResult; onError: (m: string) =
               <p><b>{check.name}</b>: {check.match ? "identical to the analysed file." : "not identical: at least one byte differs."}</p>
             </div>
           )}
-          <h3>Find the original online</h3>
-          <p style={{ fontSize: 13 }}>Upload the image to a reverse image search to find earlier or unedited versions:{" "}
+          <h3>Signed evidence report</h3>
+          <p style={{ fontSize: 13 }}>The PDF report carries a QR code with this file's SHA-256, the verdict and the custody-log head,
+            signed with this computer's TrustLens key. Anyone can check it wasn't altered.</p>
+          <div className="check-actions">
+            <a className="btn btn--primary" href={api.reportPdf(r.case.id, true)}><Icon name="download" /> Download signed PDF</a>
+            <a className="btn" href="#/verify"><Icon name="shield" /> Verify a report</a>
+          </div>
+          <h3>Search manually</h3>
+          <p style={{ fontSize: 13 }}>Context checks searches the web for you. You can also upload the file to:{" "}
             <a href="https://lens.google.com/" target="_blank" rel="noreferrer">Google Lens</a>,{" "}
             <a href="https://www.bing.com/visualsearch" target="_blank" rel="noreferrer">Bing Visual Search</a>,{" "}
             <a href="https://tineye.com/" target="_blank" rel="noreferrer">TinEye</a>,{" "}
@@ -470,5 +487,244 @@ function Custody({ r, onError, onInfo }: { r: CaseResult; onError: (m: string) =
         )}
       </section>
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ media sections */
+
+const ASSESS_TONE: Record<string, string> = { "likely manipulated": "bad", suspicious: "warn", "no visible sign": "good" };
+
+function FacesSection({ r }: { r: CaseResult }) {
+  const id = r.case.id;
+  const items: { key: string; title: string; assessment?: string; evidence?: string }[] = r.media_kind === "video"
+    ? (r.video?.face_findings ?? []).map((f, i) => ({ key: `face_${i + 1}`, title: `Face close-up ${f.face || i + 1}`, assessment: f.assessment, evidence: f.evidence }))
+    : (r.faces?.faces ?? []).filter((f) => f.closeup).map((f) => ({ key: `face_${f.n}`, title: `Face ${f.n}`, assessment: f.assessment, evidence: f.evidence }));
+  const videoCrops = r.media_kind === "video" && items.length === 0
+    ? (r.video?.timeline ?? []).filter((t) => t.faces.length && t.on_sheet).slice(0, 3).map((_, i) => ({ key: `face_${i + 1}`, title: `Face close-up ${i + 1}` }))
+    : [];
+  const all = items.length ? items : videoCrops;
+  if (!all.length) return null;
+  return (
+    <section>
+      <h2>Faces</h2>
+      <p className="muted" style={{ fontSize: 13 }}>Each face was sent to the AI review as a zoomed close-up{r.media_kind === "video" ? ", from different moments of the video" : ""}.
+        Noise and detail comparisons with the surroundings are shown in Tests as experimental: on 91 synthetic face swaps they didn't separate swaps from real faces.</p>
+      <div className="faces">
+        {all.map((f) => (
+          <figure key={f.key} className="face">
+            <img src={api.image(id, f.key, 360)} alt={f.title} loading="lazy" />
+            <figcaption>
+              <b>{f.title}</b>
+              {"assessment" in f && f.assessment
+                ? <span className={`pill pill--${ASSESS_TONE[f.assessment] ?? ""}`}>{f.assessment}</span>
+                : <span className="muted">{r.llm_used ? "No comment from the AI review" : "AI review off"}</span>}
+              {"evidence" in f && f.evidence && <small>{f.evidence}</small>}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FramesSection({ r }: { r: CaseResult }) {
+  const v = r.video!;
+  const noted = v.timeline.filter((f) => f.ai_note && f.ai_note.toLowerCase() !== "nothing unusual");
+  return (
+    <section>
+      <h2>Across the video</h2>
+      <dl className="facts">
+        <dt>Clip</dt><dd>{v.duration}s at {v.fps} fps, {v.frames_total} frames, {v.codec || "unknown codec"}</dd>
+        <dt>Checked</dt><dd>{v.timeline.length} frames spread across the clip; {v.timeline.filter((f) => f.faces.length).length} with a face</dd>
+        {v.ai_tools_named.length > 0 && <><dt>AI tools named</dt><dd>{v.ai_tools_named.join(", ")}</dd></>}
+        {v.audio?.measurements && <><dt>Sound</dt><dd>{v.audio.measurements.duration}s, {v.audio.measurements.sample_rate} Hz{v.audio.speech?.status === "ok" ? `, speech in ${v.audio.speech.language || "unknown language"}` : ""}</dd></>}
+      </dl>
+      {noted.map((f) => (
+        <div className="finding" key={f.label}>
+          <span className={`pill pill--${(f.ai_score ?? 0) >= 55 ? "bad" : (f.ai_score ?? 0) >= 30 ? "warn" : "good"}`}>{f.label}</span>
+          <div><h3>{f.t.toFixed(1)}s{f.ai_score !== null ? `, score ${f.ai_score}` : ""}</h3><p>{f.ai_note}</p></div>
+        </div>
+      ))}
+      {v.audio?.speech && v.audio.speech.status === "ok" && <Transcript s={v.audio.speech} />}
+    </section>
+  );
+}
+
+function Transcript({ s }: { s: NonNullable<CaseResult["audio"]>["speech"] }) {
+  if (!s || s.status !== "ok") return null;
+  return (
+    <details className="transcript">
+      <summary>Transcript{s.language ? ` (${s.language})` : ""}</summary>
+      <p>{s.transcript || "No speech recognised."}</p>
+      <small className="muted">Machine transcription: check quotes against the recording before relying on them.</small>
+    </details>
+  );
+}
+
+function SpeechSection({ r }: { r: CaseResult }) {
+  const a = r.audio;
+  const s = a?.speech;
+  return (
+    <section>
+      <h2>What is said</h2>
+      {!s && <div className="callout"><p>Transcription and the scam check need the AI review. Add your key to the <span className="mono">.env</span> file and open the voice note again.</p></div>}
+      {s && s.status !== "ok" && <div className="callout callout--warn"><p>Transcription failed: {s.detail}</p></div>}
+      {s && s.status === "ok" && (
+        <>
+          <div className={`callout callout--${s.scam_risk === "high" ? "bad" : s.scam_risk === "medium" ? "warn" : "good"}`}>
+            <p><b>Scam risk: {s.scam_risk}.</b> {s.summary}</p>
+          </div>
+          <dl className="facts">
+            {s.claimed_speaker && <><dt>Speaker claims to be</dt><dd>{s.claimed_speaker}</dd></>}
+            {(s.requests ?? []).length > 0 && <><dt>Asks the listener to</dt><dd>{s.requests!.join("; ")}</dd></>}
+            {s.language && <><dt>Language</dt><dd>{s.language}</dd></>}
+          </dl>
+          {(s.scam_cues ?? []).map((c) => (
+            <div className="finding" key={c.cue}><Sev level="medium" /><div><h3>{cap(c.cue)}</h3><p>“{c.quote}”</p></div></div>
+          ))}
+          <Transcript s={s} />
+        </>
+      )}
+      <p className="muted" style={{ fontSize: 13 }}>TrustLens has no trained voice-clone detector, so it can't tell a cloned voice from a real one by sound.
+        If a voice note asks for money or codes, call the person back on a number you already know.</p>
+    </section>
+  );
+}
+
+function MediaTests({ r }: { r: CaseResult }) {
+  const has = (check: string) => r.forensic_signals.find((s) => s.check.startsWith(check));
+  type Row = { name: string; what: string; result: string; tone: "bad" | "warn" | "good" | ""; note?: string };
+  const v = r.video, a = r.audio;
+  const m = a?.measurements ?? v?.audio?.measurements;
+  const tools = v?.ai_tools_named ?? a?.ai_tools_named ?? [];
+  const rows: Row[] = [
+    { name: "Content Credentials", what: "Signed provenance manifest in the file",
+      result: r.metadata.c2pa ? (r.metadata.c2pa.source_types.join(", ") || "Present") : "None in file",
+      tone: has("Content Credentials declare AI generation") ? "bad" : "" },
+    { name: "AI tool in metadata", what: "Generator or voice-tool names in tags", result: tools.length ? tools.join(", ") : "None named",
+      tone: tools.length ? "bad" : "good" },
+  ];
+  if (v) {
+    const flick = v.timeline.map((f) => f.flicker).filter((x): x is number => x !== null).sort((x, y) => x - y);
+    rows.push(
+      { name: "Faces", what: "Faces found in sampled frames", result: `${v.timeline.filter((f) => f.faces.length).length} of ${v.timeline.length} frames`, tone: "" },
+      { name: "Face flicker", what: "Face change between consecutive frames vs the rest", note: "Experimental, not in verdict",
+        result: flick.length ? `median ${flick[Math.floor(flick.length / 2)].toFixed(1)}×` : "No face", tone: "" },
+      { name: "Still-image tests", what: `Error levels, ghost, clones on key frame ${v.key_frame}`, note: "Hints only for video",
+        result: r.forensic_signals.filter((s) => s.check.includes("(key frame")).map((s) => s.check.replace(/ \(key frame.*$/, "")).join(", ") || "Nothing flagged", tone: "" },
+    );
+  }
+  if (m) {
+    rows.push(
+      { name: "Digital silence", what: "Exact silence inside speech (software edit or generation)",
+        result: m.digital_silence.length ? `${m.digital_silence.length} stretch${m.digital_silence.length > 1 ? "es" : ""}, first at ${m.digital_silence[0].start}s` : "None",
+        tone: m.digital_silence.length ? "warn" : "good" },
+      { name: "Background jumps", what: "Background noise changes between pauses", note: "Context only",
+        result: m.background_jumps.length ? `${m.background_jumps.length} at ${m.background_jumps.map((j) => `${j.at}s`).join(", ")}` : "None", tone: "" },
+      { name: "Bandwidth", what: "Highest frequency carrying sound", note: "Context only",
+        result: m.bandwidth?.content_up_to_hz ? `${(m.bandwidth.content_up_to_hz / 1000).toFixed(1)} of ${((m.bandwidth.nyquist_hz ?? 0) / 1000).toFixed(0)} kHz` : "n/a", tone: "" },
+    );
+  }
+  const sp = a?.speech ?? v?.audio?.speech;
+  rows.push(
+    { name: a ? "Transcript and scam check" : "AI visual review", what: a ? "Speech to text, then scam cues" : "Contact sheet and face close-ups",
+      result: a ? (sp?.status === "ok" ? `Scam risk ${sp.scam_risk}` : "Off (no API key)") : r.llm_used ? "Done" : "Off (no API key)",
+      tone: sp?.scam_risk === "high" ? "bad" : sp?.scam_risk === "medium" ? "warn" : "" },
+    { name: "Voice-clone detector", what: "Trained model for cloned voices", result: a || v?.audio ? "Not available" : "n/a", tone: "",
+      note: a || v?.audio ? "TrustLens doesn't claim to detect cloned voices" : undefined },
+  );
+  return (
+    <section>
+      <h2>Every test that ran</h2>
+      <p className="muted" style={{ fontSize: 13 }}>Only Content Credentials, AI tools named in the file and the AI review can make a {r.media_kind === "audio" ? "voice note" : "video"} "manipulated".
+        Digital silence can make a voice note "possible editing". The rest is context: it didn't separate real from fake reliably in calibration.</p>
+      <div className="tbl-wrap">
+        <table className="tbl">
+          <thead><tr><th>Test</th><th>Looks for</th><th>Result</th></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.name}>
+                <td><b>{row.name}</b>{row.note && <div className="muted" style={{ fontSize: 12 }}>{row.note}</div>}</td>
+                <td className="muted">{row.what}</td>
+                <td>{row.tone ? <span className={`pill pill--${row.tone}`}>{row.result}</span> : row.result}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ReverseSection({ r, busy, disabled, onRun }: { r: CaseResult; busy: boolean; disabled: boolean; onRun: () => void }) {
+  const rs = r.reverse_search;
+  return (
+    <section>
+      <h2>Has this appeared online before?</h2>
+      <p className="muted" style={{ fontSize: 13 }}>Real photos reused with a false caption are the most common fake on WhatsApp. The AI review describes the
+        {r.media_kind === "video" ? " key frame" : " picture"}, TrustLens searches the web, downloads the images on the result pages and compares fingerprints.
+        Only a fingerprint match counts. Your file is never uploaded: only text queries leave this computer.</p>
+      <div className="check-actions">
+        <button className="btn btn--primary" disabled={disabled} onClick={onRun}><Icon name="search" />
+          {busy ? " Searching and comparing images…" : rs ? " Search again" : " Search the web for earlier copies"}</button>
+      </div>
+      {rs && (
+        <>
+          <div className={`callout callout--${rs.matches.length ? "warn" : ""}`}><p>{rs.summary}</p></div>
+          {rs.matches.map((m) => (
+            <div className="match" key={m.url}>
+              <span className="pill pill--warn">Match</span>
+              <div>
+                <a href={m.url} target="_blank" rel="noreferrer"><b>{m.title || m.domain || m.url}</b></a>
+                <span className="muted">{m.domain}{m.date ? ` · ${m.date.slice(0, 10)}` : " · undated"} · fingerprint distance {m.best_distance}/64</span>
+              </div>
+            </div>
+          ))}
+          {rs.unconfirmed.length > 0 && (
+            <details className="transcript">
+              <summary>{rs.unconfirmed.length} other result{rs.unconfirmed.length > 1 ? "s" : ""} without a matching image</summary>
+              <ul>{rs.unconfirmed.map((u) => (
+                <li key={u.url}><a href={u.url} target="_blank" rel="noreferrer">{u.title || u.url}</a>
+                  <span className="muted"> {u.status === "unreachable" ? "(couldn't open)" : u.best_distance !== null ? `(closest image ${u.best_distance}/64)` : "(no images)"}</span></li>
+              ))}</ul>
+            </details>
+          )}
+          <p className="muted" style={{ fontSize: 12 }}>Searched with {rs.method || "no search engine"} for: {rs.description.queries.join(" · ")}. {rs.checked} pages checked.
+            {rs.errors.length > 0 && ` Problems: ${rs.errors.join("; ")}.`}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ScreenshotSection({ r, busy, disabled, onRun }: { r: CaseResult; busy: boolean; disabled: boolean; onRun: () => void }) {
+  const sc = r.screenshot_check;
+  const tone = sc?.overall === "contradicted" ? "bad" : sc?.overall === "suspicious" ? "warn" : sc?.overall === "no_contradiction" ? "good" : "";
+  const label = { contradicted: "Fails format checks", suspicious: "Visual anomalies to check", no_contradiction: "No contradictions found",
+                  not_checkable: "Nothing checkable found" } as const;
+  return (
+    <section>
+      <h2>Is this screenshot forged?</h2>
+      <p className="muted" style={{ fontSize: 13 }}>For payment receipts and chats: the AI review reads the fields, then code checks what can be checked:
+        12-digit UPI reference numbers, real dates that match their weekday, one amount everywhere, message times in order, one time format.</p>
+      <div className="check-actions">
+        <button className="btn btn--primary" disabled={disabled} onClick={onRun}><Icon name="chat" />
+          {busy ? " Reading the screenshot…" : sc ? " Check again" : " Check this screenshot"}</button>
+      </div>
+      {sc && (
+        <>
+          <div className={`callout callout--${tone}`}><p><b>{label[sc.overall]}.</b> {sc.kind !== "other" ? `Read as a ${sc.kind} screenshot${sc.app ? ` from ${sc.app}` : ""}.` : "This doesn't look like a chat or payment screenshot."}</p></div>
+          {sc.checks.map((c) => (
+            <div className="claim" key={c.check + c.detail}>
+              <span className={`pill pill--${c.status === "contradicted" ? "bad" : c.status === "ok" ? "good" : ""}`}>{c.status === "contradicted" ? "✕" : c.status === "ok" ? "✓" : "?"}</span>
+              <div><b>{c.check}</b><span className="muted">{c.detail}</span></div>
+            </div>
+          ))}
+          {sc.visual_anomalies.map((a) => (
+            <div className="finding" key={a.anomaly + a.where}><Sev level={a.severity} /><div><h3>{cap(a.anomaly)}</h3><p>{a.where}</p></div></div>
+          ))}
+        </>
+      )}
+    </section>
   );
 }

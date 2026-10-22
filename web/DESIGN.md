@@ -39,3 +39,17 @@ Left-aligned throughout. Below 1100 px the verdict moves under the viewer; below
 4. **Every claim cites its source:** a forensic test, the vision model, a signed manifest, or an official record.
 5. **Honest wording:** never "authentic"; experimental tools are labelled as such.
 6. **Motion only answers actions**, plus one scan line while an analysis runs (disabled under reduced motion).
+
+## Video, audio, batches, verification, demo (v0.4)
+
+- **Video** keeps the ruler frame and the wipe; a 12-frame timeline sits under the stage. Each frame carries a 3 px score bar
+  (red/amber/green from the AI review, grey when unscored) and the key frame has a marker-yellow top edge, so the analysis
+  layers' source frame is visible without a label. "Play video" swaps the stage for the original file.
+- **Audio** puts the spectrogram where the photo would be (same palette as the error-level map: ink to marker) and wipes to
+  the waveform; edit points are full-height marks with the usual numbered tents.
+- **Never green when unchecked**: a result made without the AI review, and every traceless voice note, uses the amber
+  inconclusive treatment everywhere (verdict band, locker dot, PDF), because "nothing found" would read as "cleared".
+- **In short** (verdict panel): the three-line summary with an English / हिंदी segmented switch; Hindi uses Noto Sans
+  Devanagari (loaded only for Devanagari code points via unicode-range).
+- **Batch** is a plain risk-sorted table, not cards: the score column is right-aligned tabular numbers so it scans.
+- **Demo bar** is the one piece of non-user-triggered motion: a marker-yellow progress line along its bottom edge.

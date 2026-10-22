@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import type { Severity } from "./api";
 
-type IconName = "open" | "camera" | "report" | "compare" | "trash" | "menu" | "close" | "grip" | "check" | "warn" | "link" | "lens";
+type IconName = "open" | "camera" | "report" | "compare" | "trash" | "menu" | "close" | "grip" | "check" | "warn" | "link" | "lens"
+  | "play" | "pause" | "stack" | "shield" | "download" | "prev" | "next" | "search" | "chat";
 
 const PATHS: Record<IconName, ReactNode> = {
   open: <path d="M4 20h16M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" />,
@@ -16,6 +17,15 @@ const PATHS: Record<IconName, ReactNode> = {
   warn: <><path d="M12 4 2.5 20h19z" /><path d="M12 10v4.5M12 17.5v.5" /></>,
   link: <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />,
   lens: <><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l5.5 5.5" /></>,
+  play: <path d="M8 5.5v13l10-6.5z" />,
+  pause: <path d="M8.5 5.5v13M15.5 5.5v13" />,
+  stack: <><rect x="4" y="9" width="16" height="11" /><path d="M6.5 6h11M9 3h6" /></>,
+  shield: <><path d="M12 3 5 6v5.5c0 4.3 3 7.8 7 9.5 4-1.7 7-5.2 7-9.5V6z" /><path d="M9 12l2.2 2.2L15.5 10" /></>,
+  download: <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16" />,
+  prev: <path d="M15 5l-7 7 7 7" />,
+  next: <path d="M9 5l7 7-7 7" />,
+  search: <><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l5.5 5.5M8 10.5h5" /></>,
+  chat: <><path d="M4 5h16v11H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></>,
 };
 
 export function Icon({ name, title }: { name: IconName; title?: string }) {

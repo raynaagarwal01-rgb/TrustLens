@@ -100,12 +100,75 @@ export interface Comparison {
   other_name: string;
 }
 
+export type MediaKind = "image" | "video" | "audio";
+
 export interface CaseMeta {
-  id: string; sha256: string; name: string; source: "sample" | "upload"; created: number; use_llm: boolean;
+  id: string; sha256: string; name: string; source: "sample" | "upload" | "batch"; created: number; use_llm: boolean;
+  media_kind?: MediaKind;
+}
+
+export interface Face {
+  n: number; box: [number, number, number, number]; share_of_image: number;
+  noise_vs_surroundings?: number; detail_vs_surroundings?: number; closeup: boolean;
+  assessment?: "no visible sign" | "suspicious" | "likely manipulated"; evidence?: string;
+}
+export interface Faces { status: string; count?: number; faces: Face[]; detail?: string }
+
+export interface TimelineFrame {
+  label: string; t: number; index: number; faces: number[][]; flicker: number | null; ela_max_z: number;
+  ai_score: number | null; ai_note: string; on_sheet: boolean; key: boolean;
+}
+
+export interface Speech {
+  status: string; detail?: string; transcript?: string; language?: string; summary?: string; claimed_speaker?: string;
+  requests?: string[]; scam_risk?: "low" | "medium" | "high"; scam_cues?: { cue: string; quote: string }[];
+  speech_notes?: string;
+}
+
+export interface AudioTrack {
+  status: string; detail?: string;
+  measurements?: { duration: number; sample_rate: number; speech_share: number; digital_silence: { start: number; end: number }[];
+                   background_jumps: { at: number; change_db: number }[]; bandwidth: { content_up_to_hz?: number; nyquist_hz?: number } };
+  speech?: Speech;
+}
+
+export interface VideoInfo {
+  duration: number; fps: number; frames_total: number; codec: string; container: string; tags: Record<string, string>;
+  ai_tools_named: string[]; timeline: TimelineFrame[]; key_frame: string;
+  face_findings: { face: string; assessment: string; evidence: string }[]; audio: AudioTrack | null;
+}
+
+export interface AudioInfo extends AudioTrack {
+  tags: Record<string, string>; ai_tools_named: string[]; codec: string;
+  marks: { box: number[]; title: string; detail: string }[];
+}
+
+export interface ScreenshotCheck {
+  kind: string; app: string; overall: "contradicted" | "suspicious" | "no_contradiction" | "not_checkable";
+  checks: { check: string; status: "ok" | "contradicted" | "unverified"; detail: string }[];
+  visual_anomalies: { anomaly: string; where: string; severity: Exclude<Severity, "info"> }[];
+}
+
+export interface ReversePage {
+  url: string; title: string; date: string; domain?: string; status: "match" | "unconfirmed" | "unreachable";
+  best_distance: number | null; image_url: string;
+}
+export interface ReverseSearch {
+  status: string; verdict: "found" | "found_earlier" | "not_found"; summary: string; method: string; errors: string[];
+  description: { description: string; queries: string[]; visible_text: string; claimed_context: string };
+  matches: ReversePage[]; unconfirmed: ReversePage[]; checked: number;
 }
 
 export interface CaseResult {
   case: CaseMeta;
+  media_kind: MediaKind;
+  headline: string;
+  summary: { en: string[]; hi: string[] };
+  faces?: Faces;
+  video?: VideoInfo;
+  audio?: AudioInfo;
+  screenshot_check?: ScreenshotCheck;
+  reverse_search?: ReverseSearch;
   verdict: Verdict;
   verdict_label: string;
   manipulation_score: number;
@@ -141,10 +204,27 @@ export interface CaseResult {
 }
 
 export interface CaseSummary extends CaseMeta {
-  verdict: Verdict; verdict_label: string; score: number; fake_type_label: string;
+  verdict: Verdict; verdict_label: string; score: number; fake_type_label: string; headline: string; llm_used: boolean;
 }
 
-export interface Sample { name: string; group: string; label: string; ground_truth: boolean }
+export interface Sample { name: string; group: string; label: string; kind: MediaKind; ground_truth: boolean }
+
+export interface BatchItem {
+  n: number; file: string; kind: MediaKind | "unknown"; size: number; status: "queued" | "running" | "done" | "error";
+  sender?: string; sent?: string; case_id?: string; verdict?: Verdict; verdict_label?: string; score?: number;
+  fake_type_label?: string; headline?: string; media_kind?: MediaKind; error?: string;
+}
+export interface Batch {
+  id: string; name: string; created: number; total: number; items: BatchItem[]; skipped: string[]; from_chat: boolean;
+}
+export interface BatchSummary { id: string; name: string; created: number; total: number; done: number }
+
+export interface VerifyResult {
+  valid: boolean; reason: string;
+  payload?: { case: string; file: string; sha256: string; media: string; verdict: string; score: number; type: string;
+              ai_review: boolean; custody_head: string; tool: string; issued: string; key: string; alg: string };
+  case_now?: { exists: boolean; verdict?: string; score?: number; same_file?: boolean; changed_since?: boolean };
+}
 
 export interface CustodyEntry {
   seq: number; time: string; action: string; file_sha256: string; details: Record<string, unknown>;
@@ -155,13 +235,17 @@ export interface Chain { ok: boolean; entries: number; head: string | null; prob
 export interface Status {
   llm: { provider: string; configured: boolean; model: string };
   opencv: boolean;
+  faces: boolean;
+  ffmpeg: boolean;
+  pdf: boolean;
+  signing: string;
   c2pa_verification: boolean;
   vtop: { cli_top_found: boolean; snapshots: string[] };
   custody: Chain;
   version: string;
 }
 
-export interface Layers { available: string[]; inspection: Record<string, string> }
+export interface Layers { available: string[]; inspection: Record<string, string>; faces: string[]; frames: string[] }
 
 export class ApiError extends Error {}
 
@@ -191,7 +275,8 @@ export const api = {
   samples: () => call<Sample[]>("/api/samples"),
   cases: () => call<CaseSummary[]>("/api/cases"),
   getCase: (id: string) => call<CaseResult>(`/api/cases/${id}`),
-  openSample: (name: string, ai: boolean) => call<CaseResult>(`/api/cases?ai=${ai ? 1 : 0}`, json({ sample: name })),
+  openSample: (name: string, ai: boolean, reuse = false) =>
+    call<CaseResult>(`/api/cases?ai=${ai ? 1 : 0}`, json({ sample: name, reuse })),
   upload: (f: File, ai: boolean) => call<CaseResult>(`/api/cases?ai=${ai ? 1 : 0}`, file(f)),
   remove: (id: string) => call<{ removed: string }>(`/api/cases/${id}`, { method: "DELETE" }),
   layers: (id: string) => call<Layers>(`/api/cases/${id}/layers`),
@@ -204,4 +289,22 @@ export const api = {
   image: (id: string, kind: string, w = 2000, bust = "") => `/api/cases/${id}/image/${kind}?w=${w}${bust ? `&v=${bust}` : ""}`,
   sampleThumb: (name: string) => `/api/samples/${encodeURIComponent(name)}?w=160`,
   report: (id: string, download = false) => `/api/cases/${id}/report${download ? "?download=1" : ""}`,
+  reportPdf: (id: string, download = false) => `/api/cases/${id}/report.pdf${download ? "?download=1" : ""}`,
+  media: (id: string) => `/api/cases/${id}/media`,
+  screenshotCheck: (id: string) => call<CaseResult>(`/api/cases/${id}/screenshot-check`, { method: "POST" }),
+  reverseSearch: (id: string) => call<CaseResult>(`/api/cases/${id}/reverse-search`, { method: "POST" }),
+  verifyToken: (token: string) => call<VerifyResult>("/api/verify-report", json({ token })),
+  verifyPdf: (f: File) => call<VerifyResult>("/api/verify-report", file(f)),
+  reportKey: () => call<{ key_id: string; algorithm: string; public_key_pem: string }>("/api/report-key"),
+  batches: () => call<BatchSummary[]>("/api/batches"),
+  batch: (id: string) => call<Batch>(`/api/batches/${id}`),
+  createBatch: (files: File[]) => {
+    const fd = new FormData();
+    files.forEach((f) => fd.append("files", f));
+    return call<Batch>("/api/batches", { method: "POST", body: fd });
+  },
 };
+
+export const ACCEPT = "image/*,video/*,audio/*,.opus,.ogg,.m4a,.amr,.zip";
+export const isMedia = (f: File) =>
+  /^(image|video|audio)\//.test(f.type) || /\.(opus|ogg|m4a|amr|heic|mkv|3gp)$/i.test(f.name);

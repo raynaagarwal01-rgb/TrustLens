@@ -11,14 +11,15 @@ restarts. Every action is written to the chain-of-custody log (custody_log.jsonl
 import hashlib
 import io
 import json
+import mimetypes
 import os
-
-import envfile  # loads .env before anything reads the key
 import shutil
 import threading
 import time
 import webbrowser
 from pathlib import Path
+
+import envfile  # loads .env before anything reads the key
 
 import numpy as np
 from PIL import Image
@@ -26,16 +27,22 @@ from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from starlette.responses import FileResponse, HTMLResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 import advanced
+import batch
 import campus_check
 import custody
 import event_check
 import evidence_analyser as ea
+import faces
 import forensics
+import media
+import screenshot_check
+import signing
+import summary
 import vtop
 from report import build_report_html
 
@@ -43,10 +50,11 @@ ROOT = Path(__file__).resolve().parent
 CASES = Path(os.getenv("TRUSTLENS_CASES", ROOT / "cases"))
 SAMPLES = ROOT / "samples"
 WEB = ROOT / "web" / "dist"
-MAX_UPLOAD = 40 * 1024 * 1024
-IMAGE_TYPES = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
+MAX_UPLOAD = 100 * 1024 * 1024
+MEDIA_TYPES = tuple(media.IMAGE_EXT | media.VIDEO_EXT | media.AUDIO_EXT)
+STORED_KINDS = ("video", "audio")   # their analysis images are saved, not re-created
 
-_cache: dict[str, dict] = {}       # case id -> {"result", "images", "data", "name"}
+_cache: dict[str, dict] = {}       # case id -> {"result", "images", "data"}
 _lock = threading.Lock()
 
 # ---------------------------------------------------------------------------
@@ -85,17 +93,43 @@ def _case_dir(cid: str) -> Path:
 
 
 def _public(result: dict) -> dict:
-    return {k: v for k, v in result.items() if k != "images"}
+    out = {k: v for k, v in result.items() if k != "images"}
+    out.setdefault("media_kind", "image")
+    out["summary"] = summary.build(out)
+    out["headline"] = summary.headline(out)
+    return out
 
 
 def sample_label(name: str) -> tuple[str, str]:
     groups = [("Tp_", "Tampered photo (CASIA dataset)"), ("Au_", "Authentic photo"), ("AI_", "AI-generated image"),
               ("Edited_", "Edited photo"), ("Forged_", "Forged notice"), ("Notice_", "Genuine notice"),
-              ("Event_", "Event poster")]
+              ("Event_", "Event poster"), ("Video_", "Video"), ("Voice_", "Voice note"), ("Screenshot_", "Screenshot")]
     for prefix, label in groups:
         if name.startswith(prefix):
             return prefix.rstrip("_").lower(), label
     return "other", "Sample"
+
+
+def analyse_any(data: bytes, name: str, use_llm: bool) -> dict:
+    kind = media.kind_of(data, name)
+    if kind == "video":
+        import video_analyser
+        return video_analyser.analyse_video(data, name, use_llm=use_llm)
+    if kind == "audio":
+        import audio_analyser
+        return audio_analyser.analyse_audio(data, name, use_llm=use_llm)
+    if kind == "image":
+        return ea.analyse(data, name, use_llm=use_llm)
+    raise ValueError(f"{name} isn't an image, video or audio file TrustLens can read.")
+
+
+def _store_images(d: Path, images: dict):
+    folder = d / "images"
+    folder.mkdir(exist_ok=True)
+    for k, im in images.items():
+        if im is None or not k.replace("_", "").isalnum():
+            continue
+        im.convert("RGB").save(folder / f"{k}.jpg", "JPEG", quality=90)
 
 
 def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
@@ -105,19 +139,23 @@ def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
     d.mkdir(parents=True, exist_ok=True)
     safe = "".join(c for c in Path(name).name if c.isalnum() or c in "._- ")[:80] or "evidence"
     (d / "original.bin").write_bytes(data)
-    result = ea.analyse(data, safe, use_llm=use_llm)
+    result = analyse_any(data, safe, use_llm)
     images = result.pop("images")
     gt = SAMPLES / (Path(name).stem + "_gt.png")
     if source == "sample" and gt.exists():
         images["ground_truth"] = Image.open(gt).convert("L")
-    meta = {"id": cid, "sha256": sha, "name": safe, "source": source, "created": time.time(), "use_llm": use_llm}
+    if result.get("media_kind") in STORED_KINDS:
+        _store_images(d, images)
+    meta = {"id": cid, "sha256": sha, "name": safe, "source": source, "created": time.time(), "use_llm": use_llm,
+            "media_kind": result.get("media_kind", "image")}
     result["case"] = meta
     (d / "result.json").write_text(json.dumps(result, default=_json_default), encoding="utf-8")
     with _lock:
         _cache[cid] = {"result": result, "images": images, "data": data}
-    custody.record("analysed", sha, {"file": safe, "case": cid, "verdict": result["verdict"],
+    custody.record("analysed", sha, {"file": safe, "case": cid, "media": meta["media_kind"], "verdict": result["verdict"],
                                      "score": result["manipulation_score"], "tool": result["tool_version"],
                                      "ai_analysis": result["llm_used"]})
+    result["headline"] = summary.headline(result)
     return result
 
 
@@ -137,25 +175,46 @@ def load_case(cid: str) -> dict:
 
 
 def case_images(cid: str) -> dict:
-    """Re-create analysis images on demand (they are not stored on disk)."""
+    """Analysis images: loaded from disk for video/audio, re-created on demand for images."""
     entry = load_case(cid)
     if entry["images"] is None:
-        fx = forensics.analyse_image(entry["data"], entry["result"]["case"]["name"])
-        images = fx["images"]
-        try:
-            raw = Image.open(io.BytesIO(entry["data"])).convert("RGB")
-            images.update(advanced.run_all(images["original"], entry["data"], fx["jpeg_quality"], raw)[2])
-        except Exception:
-            pass
-        gt = SAMPLES / (Path(entry["result"]["case"]["name"]).stem + "_gt.png")
-        if entry["result"]["case"]["source"] == "sample" and gt.exists():
-            images["ground_truth"] = Image.open(gt).convert("L")
+        r = entry["result"]
+        folder = _case_dir(cid) / "images"
+        if r.get("media_kind") in STORED_KINDS and folder.exists():
+            images = {p.stem: Image.open(p) for p in folder.glob("*.jpg")}
+            for im in images.values():
+                im.load()
+        else:
+            fx = forensics.analyse_image(entry["data"], r["case"]["name"])
+            images = fx["images"]
+            try:
+                raw = Image.open(io.BytesIO(entry["data"])).convert("RGB")
+                images.update(advanced.run_all(images["original"], entry["data"], fx["jpeg_quality"], raw)[2])
+            except Exception:
+                pass
+            try:
+                fstats, crops, overlay = faces.analyse(images["original"])
+                if overlay is not None:
+                    images["faces"] = overlay
+                for i, c in enumerate(crops):
+                    images[f"face_{i + 1}"] = c
+            except Exception:
+                pass
+            gt = SAMPLES / (Path(r["case"]["name"]).stem + "_gt.png")
+            if r["case"]["source"] == "sample" and gt.exists():
+                images["ground_truth"] = Image.open(gt).convert("L")
         entry["images"] = images
     return entry["images"]
 
 
 def save_result(cid: str, result: dict):
     (_case_dir(cid) / "result.json").write_text(json.dumps(result, default=_json_default), encoding="utf-8")
+
+
+def _llm_needed(entry, what: str):
+    if not envfile.ai_review_status()[0]:
+        return err(f"{what} needs the AI review. Add your API key to the .env file and restart TrustLens.", 409)
+    return None
 
 # ---------------------------------------------------------------------------
 # API
@@ -170,11 +229,20 @@ async def status(request: Request):
         c2pa_ok = True
     except Exception:
         c2pa_ok = False
+    try:
+        import reportlab  # noqa: F401
+        pdf_ok = True
+    except Exception:
+        pdf_ok = False
     clitop = shutil.which(os.getenv("CLITOP_PATH", "cli-top")) or (os.path.exists(os.getenv("CLITOP_PATH", "")) or None)
     snaps = sorted(p.stem for p in Path(vtop.SNAPSHOT_DIR).glob("*.txt")) if Path(vtop.SNAPSHOT_DIR).exists() else []
     return ok({
         "llm": {"provider": provider, "configured": bool(key), "model": os.getenv("LLM_MODEL", "")},
         "opencv": advanced.cv2 is not None,
+        "faces": faces.available(),
+        "ffmpeg": bool(media.ffmpeg_path()),
+        "pdf": pdf_ok,
+        "signing": signing.signer().mode,
         "c2pa_verification": c2pa_ok,
         "vtop": {"cli_top_found": bool(clitop), "snapshots": snaps},
         "custody": custody.verify(),
@@ -185,11 +253,34 @@ async def status(request: Request):
 async def samples(request: Request):
     out = []
     for p in sorted(SAMPLES.iterdir()) if SAMPLES.exists() else []:
-        if p.suffix.lower() in IMAGE_TYPES and not p.stem.endswith("_gt"):
+        if p.suffix.lower() in MEDIA_TYPES and not p.stem.endswith("_gt"):
             group, label = sample_label(p.name)
-            out.append({"name": p.name, "group": group, "label": label,
+            out.append({"name": p.name, "group": group, "label": label, "kind": media.kind_of(p.read_bytes()[:64], p.name),
                         "ground_truth": (SAMPLES / (p.stem + "_gt.png")).exists()})
     return ok(out)
+
+
+def _thumb(p: Path, w: int) -> bytes:
+    data = p.read_bytes()
+    kind = media.kind_of(data[:64], p.name)
+    if kind == "video":
+        import cv2
+        cap = cv2.VideoCapture(str(p))
+        n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 1)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, n // 3)
+        good, frame = cap.read()
+        cap.release()
+        im = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)) if good else Image.new("RGB", (w, w), (43, 48, 54))
+    elif kind == "audio":
+        import audio_analyser
+        x, sr = audio_analyser.decode(str(p))
+        im = audio_analyser.waveform(x, 480, 300)
+    else:
+        im = Image.open(p).convert("RGB")
+    im.thumbnail((w, w))
+    buf = io.BytesIO()
+    im.convert("RGB").save(buf, "JPEG", quality=85)
+    return buf.getvalue()
 
 
 async def sample_file(request: Request):
@@ -199,12 +290,17 @@ async def sample_file(request: Request):
         return err("No such sample.", 404)
     w = int(request.query_params.get("w", "0") or 0)
     if w:
-        im = Image.open(p).convert("RGB")
-        im.thumbnail((w, w))
-        buf = io.BytesIO()
-        im.save(buf, "JPEG", quality=85)
-        return Response(buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
+        body = await run_in_threadpool(_thumb, p, w)
+        return Response(body, media_type="image/jpeg", headers={"Cache-Control": "max-age=3600"})
     return FileResponse(p)
+
+
+def _summary_row(r: dict) -> dict:
+    c = r.get("case", {})
+    pub = {**r, "media_kind": r.get("media_kind", "image")}
+    return {**c, "media_kind": pub["media_kind"], "verdict": r.get("verdict"), "verdict_label": r.get("verdict_label"),
+            "score": r.get("manipulation_score"), "fake_type_label": r.get("fake_type_label"),
+            "llm_used": r.get("llm_used"), "headline": summary.headline(pub)}
 
 
 async def list_cases(request: Request):
@@ -217,9 +313,7 @@ async def list_cases(request: Request):
                     r = json.loads(f.read_text(encoding="utf-8"))
                 except Exception:
                     continue
-                c = r.get("case", {})
-                out.append({**c, "verdict": r.get("verdict"), "verdict_label": r.get("verdict_label"),
-                            "score": r.get("manipulation_score"), "fake_type_label": r.get("fake_type_label")})
+                out.append(_summary_row(r))
     out.sort(key=lambda c: -c.get("created", 0))
     return ok(out)
 
@@ -227,21 +321,30 @@ async def list_cases(request: Request):
 async def create_case(request: Request):
     use_llm = request.query_params.get("ai", "1") != "0" and envfile.ai_review_status()[0]
     ctype = request.headers.get("content-type", "")
+    reuse = False
     if ctype.startswith("multipart/"):
         form = await request.form(max_part_size=MAX_UPLOAD)
         f = form.get("file")
         if f is None:
-            return err("Attach an image in the 'file' field.")
+            return err("Attach a file in the 'file' field.")
         data, name, source = await f.read(), f.filename or "upload", "upload"
     else:
         body = await request.json()
         name = body.get("sample", "")
+        reuse = bool(body.get("reuse"))
         p = (SAMPLES / name).resolve()
         if p.parent != SAMPLES.resolve() or not p.exists():
             return err("That sample doesn't exist.", 404)
         data, source = p.read_bytes(), "sample"
     if len(data) > MAX_UPLOAD:
-        return err("That file is larger than 40 MB.", 413)
+        return err("That file is larger than 100 MB.", 413)
+    if reuse:  # demo mode: open the existing analysis instead of running it again
+        try:
+            entry = load_case(case_id(hashlib.sha256(data).hexdigest()))
+            if entry["result"]["case"].get("use_llm") == use_llm or not use_llm:
+                return ok(_public(entry["result"]), 200)
+        except KeyError:
+            pass
     try:
         result = await run_in_threadpool(save_case, data, name, use_llm, source)
     except ValueError as e:
@@ -288,7 +391,7 @@ async def case_image(request: Request):
         return err("No such case.", 404)
     if kind in images and images[kind] is not None:
         im = images[kind]
-    elif kind in advanced.LAYERS:
+    elif kind in advanced.LAYERS and images.get("original") is not None:
         im = await run_in_threadpool(advanced.layer, images["original"], kind)
         images[kind] = im
     else:
@@ -298,15 +401,34 @@ async def case_image(request: Request):
     return Response(body, media_type=f"image/{fmt.lower()}", headers={"Cache-Control": "max-age=86400"})
 
 
+async def case_media(request: Request):
+    """The original file, for the video / audio player."""
+    try:
+        entry = load_case(request.path_params["cid"])
+    except KeyError:
+        return err("No such case.", 404)
+    name = entry["result"]["case"]["name"]
+    mt = mimetypes.guess_type(name)[0] or {"video": "video/mp4", "audio": "audio/mpeg"}.get(entry["result"].get("media_kind"), "application/octet-stream")
+    if name.lower().endswith((".opus", ".ogg")):
+        mt = "audio/ogg"
+    return Response(entry["data"], media_type=mt, headers={"Cache-Control": "max-age=86400", "Accept-Ranges": "none"})
+
+
 async def case_layers(request: Request):
     cid = request.path_params["cid"]
     try:
         images = await run_in_threadpool(case_images, cid)
+        r = load_case(cid)["result"]
     except KeyError:
         return err("No such case.", 404)
-    verdict_layers = [k for k in ("ela", "ghost", "copy_move", "compare", "thumbnail", "noise") if images.get(k) is not None]
-    return ok({"available": verdict_layers + (["ground_truth"] if images.get("ground_truth") is not None else []),
-               "inspection": advanced.LAYERS})
+    order = ("ela", "ghost", "copy_move", "compare", "thumbnail", "faces", "noise", "sheet", "waveform")
+    available = [k for k in order if images.get(k) is not None]
+    if r.get("media_kind") == "audio":
+        available = [k for k in ("waveform",) if images.get(k) is not None]
+    return ok({"available": available + (["ground_truth"] if images.get("ground_truth") is not None else []),
+               "inspection": advanced.LAYERS if r.get("media_kind", "image") != "audio" else {},
+               "faces": sorted(k for k in images if k.startswith("face_")),
+               "frames": sorted((k for k in images if k.startswith("frame_")), key=lambda k: int("".join(c for c in k if c.isdigit()) or 0))})
 
 
 async def case_histogram(request: Request):
@@ -324,13 +446,14 @@ async def notice_check(request: Request):
         entry = load_case(cid)
     except KeyError:
         return err("No such case.", 404)
-    if not entry["result"].get("llm_used"):
-        return err("Reading a notice needs AI analysis. Add an API key and re-run the case.", 409)
+    if (e := _llm_needed(entry, "Reading a notice")):
+        return e
     try:
         check = await run_in_threadpool(campus_check.run_campus_check, entry["data"], bool(body.get("live")))
     except Exception as e:
         return err(f"The notice check failed: {type(e).__name__}: {str(e)[:200]}", 502)
     result = campus_check.apply_to_result(entry["result"], check)
+    entry["result"] = result
     save_result(cid, result)
     custody.record("vtop_notice_check", result["case"]["sha256"], {"overall": check["overall"], "source": check["data_source"]})
     return ok(_public(result))
@@ -343,8 +466,8 @@ async def run_event_check(request: Request):
         entry = load_case(cid)
     except KeyError:
         return err("No such case.", 404)
-    if not entry["result"].get("llm_used"):
-        return err("Reading a poster needs AI analysis. Add an API key and re-run the case.", 409)
+    if (e := _llm_needed(entry, "Reading a poster")):
+        return e
     try:
         check = await run_in_threadpool(event_check.run_event_check, entry["data"], bool(body.get("live")))
     except Exception as e:
@@ -353,6 +476,61 @@ async def run_event_check(request: Request):
     save_result(cid, entry["result"])
     custody.record("event_check", entry["result"]["case"]["sha256"],
                    {"verdict": check["verdict"], "event": check["event"]["event_name"]})
+    return ok(_public(entry["result"]))
+
+
+def _image_bytes(cid: str, entry: dict) -> bytes:
+    """The picture to read: the file itself for images, the key frame for videos."""
+    if entry["result"].get("media_kind", "image") == "image":
+        return entry["data"]
+    buf = io.BytesIO()
+    case_images(cid)["original"].convert("RGB").save(buf, "JPEG", quality=92)
+    return buf.getvalue()
+
+
+async def run_screenshot_check(request: Request):
+    cid = request.path_params["cid"]
+    try:
+        entry = load_case(cid)
+    except KeyError:
+        return err("No such case.", 404)
+    if (e := _llm_needed(entry, "Reading a screenshot")):
+        return e
+    if entry["result"].get("media_kind", "image") == "audio":
+        return err("Screenshot checks work on images.", 422)
+    try:
+        check = await run_in_threadpool(screenshot_check.run_screenshot_check, await run_in_threadpool(_image_bytes, cid, entry))
+    except Exception as e:
+        return err(f"The screenshot check failed: {type(e).__name__}: {str(e)[:200]}", 502)
+    result = screenshot_check.apply_to_result(entry["result"], check)
+    entry["result"] = result
+    save_result(cid, result)
+    custody.record("screenshot_check", result["case"]["sha256"], {"overall": check["overall"], "kind": check["kind"]})
+    return ok(_public(result))
+
+
+async def run_reverse_search(request: Request):
+    cid = request.path_params["cid"]
+    try:
+        entry = load_case(cid)
+    except KeyError:
+        return err("No such case.", 404)
+    if (e := _llm_needed(entry, "Searching for earlier copies")):
+        return e
+    if entry["result"].get("media_kind", "image") == "audio":
+        return err("Reverse search works on images and video frames.", 422)
+    import reverse_search
+    exif = entry["result"].get("metadata", {}).get("exif", {})
+    try:
+        res = await run_in_threadpool(reverse_search.run_reverse_search, await run_in_threadpool(_image_bytes, cid, entry),
+                                      exif.get("DateTimeOriginal") or exif.get("DateTime", ""))
+    except Exception as e:
+        return err(f"The search failed: {type(e).__name__}: {str(e)[:200]}", 502)
+    res.pop("hashes", None)
+    entry["result"]["reverse_search"] = res
+    save_result(cid, entry["result"])
+    custody.record("reverse_search", entry["result"]["case"]["sha256"],
+                   {"verdict": res["verdict"], "matches": [m["url"] for m in res["matches"]][:5]})
     return ok(_public(entry["result"]))
 
 
@@ -398,25 +576,137 @@ async def verify_file(request: Request):
     return ok({"match": match, "sha256": sha})
 
 
+def _report_input(cid: str) -> tuple[dict, str]:
+    entry = load_case(cid)
+    images = case_images(cid)
+    sha = entry["result"]["case"]["sha256"]
+    hist = custody.history(sha)
+    r = {**_public(entry["result"]), "images": images, "custody": {"chain": custody.verify(), "history": hist}}
+    return r, (hist[-1]["entry_hash"] if hist else "")
+
+
 async def report(request: Request):
     cid = request.path_params["cid"]
     try:
-        entry = load_case(cid)
-        images = await run_in_threadpool(case_images, cid)
+        r, _ = await run_in_threadpool(_report_input, cid)
     except KeyError:
         return err("No such case.", 404)
-    sha = entry["result"]["case"]["sha256"]
-    custody.record("report_exported", sha, {"format": "html"})
-    r = {**entry["result"], "images": images, "custody": {"chain": custody.verify(), "history": custody.history(sha)}}
+    custody.record("report_exported", r["case"]["sha256"], {"format": "html"})
     html = await run_in_threadpool(build_report_html, r)
     disp = "attachment" if request.query_params.get("download") else "inline"
     return HTMLResponse(html, headers={"Content-Disposition": f'{disp}; filename="trustlens_report_{cid}.html"'})
+
+
+async def report_pdf(request: Request):
+    cid = request.path_params["cid"]
+    try:
+        import pdf_report
+    except ImportError:
+        return err("PDF reports need reportlab: pip install reportlab", 501)
+    try:
+        r, head = await run_in_threadpool(_report_input, cid)
+    except KeyError:
+        return err("No such case.", 404)
+    custody.record("report_exported", r["case"]["sha256"], {"format": "pdf", "signing_key": signing.signer().key_id})
+    pdf, token = await run_in_threadpool(pdf_report.build_pdf, r, head)
+    disp = "attachment" if request.query_params.get("download") else "inline"
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'{disp}; filename="trustlens_report_{cid}.pdf"'})
+
+
+async def verify_report(request: Request):
+    token, pem = "", None
+    if request.headers.get("content-type", "").startswith("multipart/"):
+        form = await request.form(max_part_size=MAX_UPLOAD)
+        f = form.get("file")
+        if f is not None:
+            from pdf_report import token_from_pdf
+            token = token_from_pdf(await f.read())
+        token = token or str(form.get("token") or "")
+        pem = str(form.get("public_key") or "") or None
+    else:
+        body = await request.json()
+        token, pem = str(body.get("token", "")), body.get("public_key") or None
+    if not token:
+        return err("No TrustLens report code found. Paste the code under the QR, or upload the report PDF.", 422)
+    res = signing.signer().verify(token, pem)
+    p = res.get("payload") or {}
+    if res["valid"] and p.get("case"):
+        try:
+            cur = load_case(p["case"])["result"]
+            res["case_now"] = {"exists": True, "verdict": cur["verdict"], "score": cur["manipulation_score"],
+                               "same_file": cur["case"]["sha256"] == p.get("sha256"),
+                               "changed_since": cur["verdict"] != p.get("verdict") or cur["manipulation_score"] != p.get("score")}
+        except KeyError:
+            res["case_now"] = {"exists": False}
+    return ok(res)
+
+
+async def report_key(request: Request):
+    s = signing.signer()
+    return ok({"key_id": s.key_id, "algorithm": s.mode, "public_key_pem": s.public_pem})
 
 
 async def custody_log(request: Request):
     sha = request.query_params.get("sha")
     entries = custody.history(sha) if sha else custody.read()[-300:]
     return ok({"chain": custody.verify(), "entries": entries})
+
+
+# --------------------------------------------------------------------------- batches
+
+def _batch_analyse(data: bytes, name: str, source: str) -> dict:
+    return save_case(data, name, envfile.ai_review_status()[0], source)
+
+
+_batches: batch.Batches | None = None
+
+
+def batches() -> batch.Batches:
+    global _batches
+    if _batches is None:
+        _batches = batch.Batches(CASES / "_batches", _batch_analyse)
+    return _batches
+
+
+async def create_batch(request: Request):
+    form = await request.form(max_files=batch.MAX_FILES + 5, max_part_size=batch.MAX_ZIP_BYTES)
+    uploads = form.getlist("files")
+    if not uploads:
+        return err("Choose files, or a WhatsApp chat export (.zip).")
+    files, chat, skipped, name = [], {}, [], ""
+    for f in uploads:
+        data = await f.read()
+        fname = f.filename or "file"
+        if fname.lower().endswith(".zip"):
+            try:
+                zf, zc, zs = await run_in_threadpool(batch.files_from_zip, data)
+            except Exception as e:
+                return err(f"Couldn't open {fname}: {type(e).__name__}: {str(e)[:120]}", 422)
+            files += zf
+            chat.update(zc)
+            skipped += zs
+            name = name or fname.rsplit(".", 1)[0]
+        elif media.kind_of(data, fname) in ("image", "video", "audio") and len(data) <= batch.MAX_FILE_BYTES:
+            files.append((fname, data))
+        else:
+            skipped.append(fname)
+    if not files:
+        return err("None of those files is an image, video or audio file TrustLens can read.", 422)
+    files = files[: batch.MAX_FILES]
+    b = batches().create(name or f"{len(files)} files", files, chat, skipped)
+    return ok(b, 201)
+
+
+async def get_batch(request: Request):
+    try:
+        return ok(batches().get(request.path_params["bid"]))
+    except KeyError:
+        return err("No such batch.", 404)
+
+
+async def list_batches(request: Request):
+    return ok(batches().list())
 
 
 async def index(request: Request):
@@ -437,12 +727,21 @@ routes = [
     Route("/api/cases/{cid}", delete_case, methods=["DELETE"]),
     Route("/api/cases/{cid}/layers", case_layers),
     Route("/api/cases/{cid}/image/{kind}", case_image),
+    Route("/api/cases/{cid}/media", case_media),
     Route("/api/cases/{cid}/histogram", case_histogram),
     Route("/api/cases/{cid}/notice-check", notice_check, methods=["POST"]),
     Route("/api/cases/{cid}/event-check", run_event_check, methods=["POST"]),
+    Route("/api/cases/{cid}/screenshot-check", run_screenshot_check, methods=["POST"]),
+    Route("/api/cases/{cid}/reverse-search", run_reverse_search, methods=["POST"]),
     Route("/api/cases/{cid}/compare", compare, methods=["POST"]),
     Route("/api/cases/{cid}/verify-file", verify_file, methods=["POST"]),
     Route("/api/cases/{cid}/report", report),
+    Route("/api/cases/{cid}/report.pdf", report_pdf),
+    Route("/api/verify-report", verify_report, methods=["POST"]),
+    Route("/api/report-key", report_key),
+    Route("/api/batches", list_batches),
+    Route("/api/batches", create_batch, methods=["POST"]),
+    Route("/api/batches/{bid}", get_batch),
     Route("/api/custody", custody_log),
     Route("/", index),
 ]
@@ -459,6 +758,7 @@ if __name__ == "__main__":
     port = int(os.getenv("TRUSTLENS_PORT", "8000"))
     if os.getenv("TRUSTLENS_NO_BROWSER") != "1":
         threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
+
     class _Server(uvicorn.Server):
         """Ctrl+C stops the server even while the browser holds connections open or an analysis
         (or cli-top) is still running: a 2-second grace period, then a hard exit. A second Ctrl+C

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type CaseResult, type Layers } from "./api";
-import { defaultLayer, evidenceMarks, LAYER_LABEL, VERDICT_LAYERS } from "./evidence";
+import { api, type CaseResult, type Layers, type TimelineFrame } from "./api";
+import { baseLabel, defaultLayer, evidenceMarks, LAYER_LABEL, VERDICT_LAYERS } from "./evidence";
 import { Icon } from "./ui";
 
 /** Ruler ticks drawn along the frame, like the scale placed beside evidence in forensic photos. */
@@ -33,6 +33,33 @@ interface Props {
   activeMark: number | null;
 }
 
+const frameKind = (f: TimelineFrame) => `frame_${f.label.toLowerCase()}`;
+const scoreTone = (s: number | null) => (s === null ? "none" : s >= 55 ? "bad" : s >= 30 ? "warn" : "good");
+
+function Timeline({ id, frames, selected, onSelect, duration }: {
+  id: string; frames: TimelineFrame[]; selected: string; onSelect: (label: string) => void; duration: number;
+}) {
+  return (
+    <div className="timeline" role="listbox" aria-label="Frames sampled from the video">
+      {frames.map((f) => (
+        <button key={f.label} role="option" aria-selected={selected === f.label} className={`timeline__frame${f.key ? " is-key" : ""}`}
+                onClick={() => onSelect(f.label)} title={`${f.key ? "Key frame (largest face): analysis layers use this one. " : ""}${f.ai_note || `${f.label} at ${f.t}s`}`}>
+          <img src={api.image(id, frameKind(f), 240)} alt="" loading="lazy" />
+          <span className="timeline__meta">
+            <b>{f.label}</b><span>{f.t.toFixed(1)}s</span>
+          </span>
+          <span className={`timeline__bar timeline__bar--${scoreTone(f.ai_score)}`}
+                style={{ width: f.ai_score === null ? "100%" : `${Math.max(6, f.ai_score)}%` }}
+                aria-label={f.ai_score === null ? "Not scored" : `AI review score ${f.ai_score}`} />
+        </button>
+      ))}
+      <div className="timeline__axis" aria-hidden="true">
+        <span>0s</span><span>{duration.toFixed(1)}s</span>
+      </div>
+    </div>
+  );
+}
+
 export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
   const id = result?.case.id ?? "";
   const available = layers?.available ?? [];
@@ -43,12 +70,16 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
   const [loupeOn, setLoupeOn] = useState(false);
   const [loupe, setLoupe] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const [frameSel, setFrameSel] = useState("");
+  const [playing, setPlaying] = useState(false);
   const frame = useRef<HTMLDivElement>(null);
   const bust = result?.comparison ? result.comparison.other_name : "";
 
   useEffect(() => {
     if (result && layers) setLayer(defaultLayer(result, layers.available));
     setPos(50);
+    setFrameSel(result?.video?.key_frame ?? "");
+    setPlaying(false);
   }, [id, layers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const marks = useMemo(() => (result ? evidenceMarks(result) : []), [result]);
@@ -65,27 +96,38 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
     return (
       <div className="viewer" aria-busy={!!busyPreview}>
         <div className="frame">
-        <div className="scale scale--top"><Ruler /></div>
-        <div className="scale scale--left"><Ruler vertical /></div>
-        <div className="scale-corner"><span /></div>
-        <div className="stage">
-          {busyPreview && <div className="stage__frame"><img src={busyPreview} alt="Evidence being analysed" /></div>}
-          <div className="scan" />
-          <div className="stage__busy" role="status">Analysing: hashes, metadata, pixel tests{" "}
-            and AI review. Usually 5–20 seconds.</div>
-        </div>
+          <div className="scale scale--top"><Ruler /></div>
+          <div className="scale scale--left"><Ruler vertical /></div>
+          <div className="scale-corner"><span /></div>
+          <div className="stage">
+            {busyPreview && <div className="stage__frame"><img src={busyPreview} alt="Evidence being analysed" /></div>}
+            <div className="scan" />
+            <div className="stage__busy" role="status">Analysing: fingerprints, metadata, forensic tests and AI review.
+              Images take 5–20 seconds, videos up to a minute.</div>
+          </div>
         </div>
       </div>
     );
   }
 
+  const video = result.media_kind === "video" ? result.video : undefined;
+  const isAudio = result.media_kind === "audio";
+  const keyFrame = video?.key_frame ?? "";
+  const otherFrame = !!video && frameSel !== "" && frameSel !== keyFrame;
+  const selFrame = video?.timeline.find((f) => f.label === frameSel);
+
   const isInspection = layer in (layers?.inspection ?? {});
   const layerDef = VERDICT_LAYERS.find((l) => l.id === layer);
   const layerName = layerDef?.label ?? LAYER_LABEL[layer] ?? layer;
-  const caption = layerDef?.caption ?? layers?.inspection[layer] ?? "";
-  const original = api.image(id, "original");
+  const caption = otherFrame
+    ? `Frame ${frameSel} at ${selFrame?.t.toFixed(1)}s, as decoded from the video. Analysis layers are computed for the key frame (${keyFrame}).`
+      + (selFrame?.ai_note ? ` AI review: ${selFrame.ai_note}` : "")
+    : layerDef?.caption ?? layers?.inspection[layer] ?? "";
+  const original = otherFrame && selFrame ? api.image(id, frameKind(selFrame)) : api.image(id, "original");
   const overlay = api.image(id, layer, 2000, bust);
   const hasGt = available.includes("ground_truth");
+  const layerReady = available.includes(layer) || layer in (layers?.inspection ?? {});
+  const showOverlay = !otherFrame && layerReady && !playing;
 
   const onMove = (e: React.MouseEvent) => {
     if (!loupeOn || !frame.current) return;
@@ -96,76 +138,113 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
   };
 
   const verdictLayers = VERDICT_LAYERS.filter((l) => available.includes(l.id));
+  const inspection = Object.keys(layers?.inspection ?? {});
 
   return (
-    <div className="viewer">
+    <div className={`viewer viewer--${result.media_kind}`}>
       <div className="frame">
-      <div className="scale scale--top"><Ruler /></div>
-      <div className="scale scale--left"><Ruler vertical /></div>
-      <div className="scale-corner"><span /></div>
+        <div className="scale scale--top"><Ruler /></div>
+        <div className="scale scale--left"><Ruler vertical /></div>
+        <div className="scale-corner"><span /></div>
 
-      <div className="stage" onMouseMove={onMove} onMouseLeave={() => setLoupe(null)}>
-        <div className="stage__frame" ref={frame}>
-          <img src={original} alt={`Evidence: ${result.case.name}`} draggable={false}
-               onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
-          <img className="stage__layer" src={overlay} alt={`${layerName} layer`} draggable={false}
-               style={{ clipPath: `inset(0 0 0 ${pos}%)` }} />
-          {hasGt && showGt && (
-            <div className="stage__layer" aria-label="Ground truth: the area that was actually edited"
-                 style={{ background: "rgba(255, 70, 70, 0.5)", WebkitMaskImage: `url(${api.image(id, "ground_truth")})`,
-                          maskImage: `url(${api.image(id, "ground_truth")})`, WebkitMaskSize: "100% 100%",
-                          maskSize: "100% 100%", maskMode: "luminance" } as React.CSSProperties} />
-          )}
-          {showMarks && full && marks.length > 0 && (
-            <svg className="marks" viewBox={`0 0 ${full.w} ${full.h}`} preserveAspectRatio="none" aria-hidden="true">
-              {marks.map((m) => {
-                const [x0, y0, x1, y1] = m.box;
-                return (
-                  <g key={m.n} opacity={activeMark === null || activeMark === m.n ? 1 : 0.35}>
-                    <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} className={m.alt ? "alt" : undefined} />
-                  </g>
-                );
-              })}
-            </svg>
-          )}
-          {showMarks && full && marks.map((m) => (
-            <span key={m.n} className="tent" style={{
-              position: "absolute", left: `${(m.box[0] / full.w) * 100}%`, top: `${(m.box[1] / full.h) * 100}%`,
-              transform: "translate(-30%, -105%)", opacity: activeMark === null || activeMark === m.n ? 1 : 0.4,
-            }} aria-hidden="true">{m.n}</span>
-          ))}
-          <input className="wipe-input" type="range" min={0} max={100} value={pos}
-                 aria-label={`Drag to compare the photo with the ${layerName} layer`}
-                 onChange={(e) => setPos(Number(e.target.value))} />
-          <div className="wipe" style={{ left: `${pos}%` }}>
-            <div className="wipe__grip"><Icon name="grip" /></div>
-          </div>
-          <span className="wipe__label" style={{ left: 8 }}>Photo</span>
-          <span className="wipe__label" style={{ right: 8 }}>{layerName}</span>
-          {loupeOn && loupe && (
-            <div className="loupe" style={{
-              left: loupe.x, top: loupe.y,
-              backgroundImage: `url(${loupe.px > pos ? overlay : original})`,
-              backgroundSize: `${(frame.current?.clientWidth ?? 0) * 3}px ${(frame.current?.clientHeight ?? 0) * 3}px`,
-              backgroundPosition: `${loupe.px}% ${loupe.py}%`,
-            }} />
+        <div className="stage" onMouseMove={onMove} onMouseLeave={() => setLoupe(null)}>
+          {playing && video ? (
+            <div className="stage__frame">
+              <video src={api.media(id)} controls autoPlay playsInline aria-label={`Video: ${result.case.name}`} />
+            </div>
+          ) : (
+            <div className="stage__frame" ref={frame}>
+              <img src={original} alt={`Evidence: ${result.case.name}`} draggable={false}
+                   onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
+              {showOverlay && (
+                <img className="stage__layer" src={overlay} alt={`${layerName} layer`} draggable={false}
+                     style={{ clipPath: `inset(0 0 0 ${pos}%)` }} />
+              )}
+              {hasGt && showGt && (
+                <div className="stage__layer" aria-label="Ground truth: the area that was actually edited"
+                     style={{ background: "rgba(255, 70, 70, 0.5)", WebkitMaskImage: `url(${api.image(id, "ground_truth")})`,
+                              maskImage: `url(${api.image(id, "ground_truth")})`, WebkitMaskSize: "100% 100%",
+                              maskSize: "100% 100%", maskMode: "luminance" } as React.CSSProperties} />
+              )}
+              {showMarks && !otherFrame && full && marks.length > 0 && (
+                <svg className="marks" viewBox={`0 0 ${full.w} ${full.h}`} preserveAspectRatio="none" aria-hidden="true">
+                  {marks.map((m) => {
+                    const [x0, y0, x1, y1] = m.box;
+                    return (
+                      <g key={m.n} opacity={activeMark === null || activeMark === m.n ? 1 : 0.35}>
+                        <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} className={m.alt ? "alt" : undefined} />
+                      </g>
+                    );
+                  })}
+                </svg>
+              )}
+              {showMarks && !otherFrame && full && marks.map((m) => (
+                <span key={m.n} className="tent" style={{
+                  position: "absolute", left: `${(m.box[0] / full.w) * 100}%`, top: `${(m.box[1] / full.h) * 100}%`,
+                  transform: isAudio ? "translate(-30%, 4px)" : "translate(-30%, -105%)",
+                  opacity: activeMark === null || activeMark === m.n ? 1 : 0.4,
+                }} aria-hidden="true">{m.n}</span>
+              ))}
+              {showOverlay && (
+                <>
+                  <input className="wipe-input" type="range" min={0} max={100} value={pos}
+                         aria-label={`Drag to compare the ${baseLabel(result).toLowerCase()} with the ${layerName} layer`}
+                         onChange={(e) => setPos(Number(e.target.value))} />
+                  <div className="wipe" style={{ left: `${pos}%` }}>
+                    <div className="wipe__grip"><Icon name="grip" /></div>
+                  </div>
+                  <span className="wipe__label" style={{ left: 8 }}>{baseLabel(result)}</span>
+                  <span className="wipe__label" style={{ right: 8 }}>{layerName}</span>
+                </>
+              )}
+              {otherFrame && <span className="wipe__label" style={{ left: 8 }}>Frame {frameSel}</span>}
+              {loupeOn && loupe && (
+                <div className="loupe" style={{
+                  left: loupe.x, top: loupe.y,
+                  backgroundImage: `url(${showOverlay && loupe.px > pos ? overlay : original})`,
+                  backgroundSize: `${(frame.current?.clientWidth ?? 0) * 3}px ${(frame.current?.clientHeight ?? 0) * 3}px`,
+                  backgroundPosition: `${loupe.px}% ${loupe.py}%`,
+                }} />
+              )}
+            </div>
           )}
         </div>
       </div>
-      </div>
+
+      {isAudio && (
+        <div className="player">
+          <audio src={api.media(id)} controls preload="metadata" aria-label={`Play ${result.case.name}`} />
+          <span className="muted">
+            {result.audio?.measurements?.duration?.toFixed(1)}s · {result.audio?.measurements?.sample_rate} Hz · {result.audio?.codec || "audio"}
+          </span>
+        </div>
+      )}
+
+      {video && (
+        <Timeline id={id} frames={video.timeline} selected={playing ? "" : frameSel} duration={video.duration}
+                  onSelect={(l) => { setPlaying(false); setFrameSel(l); }} />
+      )}
 
       <div className="viewer__bar">
         <div className="layer-picker" role="group" aria-label="Analysis layer">
+          {video && (
+            <button className="layer-btn" aria-pressed={playing} onClick={() => setPlaying(!playing)}>
+              <Icon name={playing ? "pause" : "play"} /> {playing ? "Stop video" : "Play video"}
+            </button>
+          )}
           {verdictLayers.map((l) => (
-            <button key={l.id} className="layer-btn" aria-pressed={layer === l.id} onClick={() => setLayer(l.id)}>
+            <button key={l.id} className="layer-btn" aria-pressed={layer === l.id && showOverlay}
+                    onClick={() => { setLayer(l.id); setFrameSel(keyFrame); setPlaying(false); }}>
               {l.label}
             </button>
           ))}
-          <select aria-label="Inspection layers" value={isInspection ? layer : ""}
-                  onChange={(e) => e.target.value && setLayer(e.target.value)}>
-            <option value="">More layers…</option>
-            {Object.keys(layers?.inspection ?? {}).map((k) => <option key={k} value={k}>{LAYER_LABEL[k] ?? k}</option>)}
-          </select>
+          {inspection.length > 0 && (
+            <select aria-label="Inspection layers" value={isInspection ? layer : ""}
+                    onChange={(e) => { if (e.target.value) { setLayer(e.target.value); setFrameSel(keyFrame); setPlaying(false); } }}>
+              <option value="">More layers…</option>
+              {inspection.map((k) => <option key={k} value={k}>{LAYER_LABEL[k] ?? k}</option>)}
+            </select>
+          )}
         </div>
         <div className="viewer__tools">
           {marks.length > 0 && (
@@ -178,7 +257,7 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
         </div>
       </div>
       <p className="layer-caption">
-        {caption}
+        {playing ? "The original video file, as received." : caption}
         {hasGt && showGt && " Red: the area the dataset says was actually edited."}
       </p>
     </div>

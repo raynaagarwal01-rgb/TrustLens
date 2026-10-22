@@ -18,6 +18,15 @@ function cloneRegions(r: CaseResult): number[][] | null {
 /** Regions on the image that tests point at, numbered like evidence markers. */
 export function evidenceMarks(r: CaseResult): Mark[] {
   const marks: Omit<Mark, "n">[] = [];
+  if (r.media_kind === "video") {
+    // still-image tests on a decoded frame are hints only; mark just the faces the AI review flagged
+    for (const f of r.faces?.faces ?? []) {
+      if (f.assessment === "suspicious" || f.assessment === "likely manipulated") {
+        marks.push({ box: f.box, title: `Face ${f.n}: ${f.assessment}`, detail: f.evidence || "AI review" });
+      }
+    }
+    return marks.map((m, i) => ({ ...m, n: i + 1 }));
+  }
   const th = r.thumbnail?.changed_region;
   if (th) marks.push({ box: th, title: "Differs from the camera's stored preview", detail: "Embedded thumbnail" });
   const cm = cloneRegions(r);
@@ -31,6 +40,12 @@ export function evidenceMarks(r: CaseResult): Mark[] {
   if (ela) marks.push({ box: ela, title: "Reacts differently to re-compression", detail: "Error-level analysis" });
   const gh = r.advanced?.ghost?.region?.box;
   if (gh) marks.push({ box: gh, title: `Matches an earlier save at quality ${r.advanced?.ghost?.region_quality ?? "lower"}`, detail: "JPEG ghost" });
+  for (const f of r.faces?.faces ?? []) {
+    if (f.assessment === "suspicious" || f.assessment === "likely manipulated") {
+      marks.push({ box: f.box, title: `Face ${f.n}: ${f.assessment}`, detail: f.evidence || "AI review of the close-up" });
+    }
+  }
+  for (const m of r.audio?.marks ?? []) marks.push({ box: m.box, title: m.title, detail: m.detail });
   return marks.map((m, i) => ({ ...m, n: i + 1 }));
 }
 
@@ -47,6 +62,12 @@ export const VERDICT_LAYERS: LayerDef[] = [
     caption: "Comparison with the reference image you supplied: bright where the two differ." },
   { id: "thumbnail", label: "Camera preview",
     caption: "The small preview the camera stored inside the file, stretched to full size. Wipe across: anything present in the photo but not in the preview was changed later." },
+  { id: "faces", label: "Faces",
+    caption: "Faces found in the image. Each one was also sent to the AI review as a zoomed close-up, where blending seams, teeth, eyes and skin texture are visible." },
+  { id: "sheet", label: "Frames",
+    caption: "The frames sampled across the video, as the AI review saw them. Pick a frame in the timeline below to look at it full size." },
+  { id: "waveform", label: "Waveform",
+    caption: "Loudness over time. Flat gaps inside speech are pauses; a perfectly flat line with no noise at all is digital silence." },
   { id: "noise", label: "Noise map", experimental: true,
     caption: "Noise consistency (experimental): bright where noise differs from the rest. Smooth areas such as sky often light up too." },
 ];
@@ -57,12 +78,21 @@ export const LAYER_LABEL: Record<string, string> = {
 };
 
 export function defaultLayer(r: CaseResult, available: string[]): string {
+  if (r.media_kind === "audio") return available.includes("waveform") ? "waveform" : available[0] ?? "";
+  if (r.media_kind === "video") return available.includes("faces") ? "faces" : "ela";
   if (r.comparison && available.includes("compare")) return "compare";
   if (cloneRegions(r) && available.includes("copy_move")) return "copy_move";
   if (r.thumbnail?.changed_region && available.includes("thumbnail")) return "thumbnail";
   if (r.advanced?.ghost?.region && available.includes("ghost")) return "ghost";
+  if ((r.faces?.faces ?? []).some((f) => f.assessment && f.assessment !== "no visible sign") && available.includes("faces")) return "faces";
   return "ela";
 }
 
 export const verdictTone = (v: string) =>
   v === "fake" || v === "likely_fake" || v === "likely_scam" ? "bad" : v === "inconclusive" || v === "unverified" ? "warn" : "good";
+
+/** What the left side of the wipe shows. */
+export const baseLabel = (r: CaseResult) =>
+  r.media_kind === "audio" ? "Spectrogram" : r.media_kind === "video" ? `Key frame ${r.video?.key_frame ?? ""}` : "Photo";
+
+export const MEDIA_NOUN: Record<string, string> = { image: "image", video: "video", audio: "voice note" };

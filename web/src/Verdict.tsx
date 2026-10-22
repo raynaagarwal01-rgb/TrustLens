@@ -1,4 +1,5 @@
-import type { CaseResult } from "./api";
+import { useState } from "react";
+import type { CaseResult, Speech } from "./api";
 import { evidenceMarks } from "./evidence";
 import { Tent } from "./ui";
 
@@ -35,34 +36,59 @@ interface Props {
 }
 
 /** Name the specific finding when the type is known, instead of "manipulated or AI-generated". */
-const unchecked = (r: CaseResult) => r.verdict === "no_evidence" && !r.llm_used;
+const unchecked = (r: CaseResult) => r.verdict === "no_evidence" && (!r.llm_used || r.media_kind === "audio");
 
-function headline(r: CaseResult): string {
-  if (unchecked(r)) return "Not enough evidence";
-  if (r.verdict === "inconclusive") return "Inconclusive";
-  if (r.verdict !== "fake" && r.verdict !== "likely_fake") return r.verdict_label;
-  const likely = r.verdict === "likely_fake" ? "Likely " : "";
-  if (r.fake_type === "ai_generated") return `${likely}AI-generated`;
-  if (r.fake_type === "face_swap_or_deepfake") return `${likely}deepfake`.replace(/^d/, "D");
-  if (["spliced_or_object_edited", "document_or_text_edited", "retouched", "edited"].includes(r.fake_type)) {
-    return likely ? "Likely manipulated" : "Manipulated";
-  }
-  return r.verdict_label;
+function Summary({ r }: { r: CaseResult }) {
+  const [lang, setLang] = useState<"en" | "hi">(() => {
+    try { return (localStorage.getItem("tl-summary-lang") as "en" | "hi") || "en"; } catch { return "en"; }
+  });
+  const pick = (l: "en" | "hi") => { setLang(l); try { localStorage.setItem("tl-summary-lang", l); } catch { /* private mode */ } };
+  if (!r.summary) return null;
+  return (
+    <section className="in-short" aria-label="Summary">
+      <div className="in-short__head">
+        <h3>In short</h3>
+        <div className="seg" role="group" aria-label="Summary language">
+          <button aria-pressed={lang === "en"} onClick={() => pick("en")}>English</button>
+          <button aria-pressed={lang === "hi"} onClick={() => pick("hi")} lang="hi">हिंदी</button>
+        </div>
+      </div>
+      <ol lang={lang}>{r.summary[lang].map((line, i) => <li key={i}>{line}</li>)}</ol>
+    </section>
+  );
+}
+
+function ScamRisk({ s }: { s: Speech }) {
+  if (s.status !== "ok" || !s.scam_risk) return null;
+  const tone = s.scam_risk === "high" ? "bad" : s.scam_risk === "medium" ? "warn" : "good";
+  return (
+    <section className={`risk risk--${tone}`} aria-label="Scam risk of what is said">
+      <div className="risk__head"><span>What is said</span><b>Scam risk: {s.scam_risk}</b></div>
+      {s.summary && <p>{s.summary}</p>}
+      {(s.scam_cues ?? []).slice(0, 3).map((c) => <p key={c.cue} className="risk__cue"><b>{c.cue}:</b> “{c.quote}”</p>)}
+    </section>
+  );
 }
 
 export function Verdict({ result: r, onMark }: Props) {
   const marks = evidenceMarks(r);
   const strong = r.forensic_signals.filter((s) => s.severity === "high" || s.severity === "medium");
-  const mode = r.llm_used ? "Forensic tests and AI review" : "Forensic tests only";
+  const mode = r.media_kind === "audio"
+    ? (r.llm_used ? "File tests and transcript" : "File and sound tests only")
+    : r.llm_used ? "Forensic tests and AI review" : "Forensic tests only";
+  const speech = r.audio?.speech ?? r.video?.audio?.speech;
   return (
     <aside className={`verdict verdict--${unchecked(r) ? "inconclusive" : r.verdict}`} aria-label="Verdict">
       <div className="verdict__band">
-        <h2 className="verdict__label display">{headline(r)}</h2>
-        <div className="verdict__type">{unchecked(r) ? "AI review was off, and forensic tests alone can't spot most AI images"
+        <h2 className="verdict__label display">{r.headline || r.verdict_label}</h2>
+        <div className="verdict__type">{unchecked(r) && r.media_kind === "audio" ? "A cloned voice can't be ruled out from the sound alone"
+            : unchecked(r) ? `AI review was off, and forensic tests alone can't spot most ${r.media_kind === "video" ? "deepfakes" : "AI images"}`
             : r.verdict === "no_evidence" ? "Nothing found that indicates editing or AI generation" : r.fake_type_label}</div>
       </div>
       <div className="verdict__body">
         <ScoreScale score={r.manipulation_score} />
+        <Summary r={r} />
+        {speech && <ScamRisk s={speech} />}
         <dl className="facts">
           <dt>Confidence</dt><dd>{r.confidence[0].toUpperCase() + r.confidence.slice(1)}</dd>
           <dt>Based on</dt><dd>{mode}</dd>

@@ -1,12 +1,20 @@
 pillow
 numpy
+scipy
 opencv-python-headless
 requests
-google-genai
-starlette
+starlette>=0.40
 uvicorn
 python-multipart
-# legacy interface: streamlit (streamlit run app.py)
+# AI review: install the one you use (LLM_PROVIDER in .env)
+groq
+google-genai
+# video and voice notes: bundles ffmpeg, so nothing else to install
+imageio-ffmpeg
+# signed PDF reports
+reportlab
+cryptography
+pypdf
+# legacy interface: streamlit run app.py
 streamlit
-# optional: groq, transformers, torch
-# optional: c2pa-python (Content Credentials signature verification)
+# optional: c2pa-python (Content Credentials signature verification), transformers + torch (DETECTOR_MODEL)

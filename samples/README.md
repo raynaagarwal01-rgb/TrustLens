@@ -12,6 +12,13 @@
 | `vtop_demo/exams.txt` | cli-top exam-schedule output used when no live VTOP snapshot exists | cli-top |
 | `Edited_iphone_photo_demo.jpg` | `Au_iphone_photo.jpg` with an area cloned over another, saved with the original camera metadata: its embedded thumbnail still shows the unedited scene | Made for TrustLens testing |
 | `Au_jolla_phone_photo.jpg` | Authentic, unedited phone photo | [ianare/exif-samples](https://github.com/ianare/exif-samples) (`jpg/mobile/jolla.jpg`) |
+| `Video_ai_talking_head_demo.mp4` | Deepfake talking head: an AI-generated portrait animated by SadTalker (re-encoded to H.264, no other change) | [OpenTalker/SadTalker](https://github.com/OpenTalker/SadTalker) `docs/example_full.gif`, Apache-2.0 |
+| `Voice_note_original_demo.wav` | Three real recorded sentences by one speaker, joined with room noise between them | [speechbrain](https://github.com/speechbrain/speechbrain) `tests/samples/ASR/spk1_snt1-3.wav`, Apache-2.0 |
+| `Voice_note_edited_demo.wav` | The same recording with the middle sentence cut out and the gap filled with 0.4 s of digital silence | Made for TrustLens testing |
+| `Screenshot_payment_demo.png` | Receipt from a fictional "DemoPay" app with three planted errors (11-digit UPI reference, weekday that doesn't match the date, two different amounts) | Made for TrustLens testing; labelled as a demo |
+| `Screenshot_chat_demo.png` | Fictional chat with a fee demand to a personal UPI ID and message times that go backwards | Made for TrustLens testing; labelled as a demo |
+
+The video, voice-note and screenshot samples are re-created by `python tools/make_demo_samples.py <SadTalker checkout> <speechbrain checkout>`.
 
 CASIA v2.0: J. Dong, W. Wang, T. Tan, "CASIA Image Tampering Detection Evaluation Database", ChinaSIP 2013. Used here for research/demo purposes with credit.
 
