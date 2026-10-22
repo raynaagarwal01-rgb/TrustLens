@@ -1,85 +1,75 @@
 # TrustLens
 
-A misinformation detector for university students. TrustLens checks news, social posts and WhatsApp forwards, and verifies **campus rumours against official college records from VTOP** (via [cli-top](https://cli-top.acmvit.in)), so "CAT-2 is postponed, forward to all!" gets checked against the actual announcements and exam schedule.
+**AI + LLM-based deepfake detection and digital evidence analysis.** Upload a photo, screenshot, certificate or circular: TrustLens checks whether it's AI-generated, deepfaked or edited, shows *where*, explains the evidence in plain language, and produces a hash-stamped evidence report.
 
-Built solo in 24 hours for a hackathon (Track 3: AI-Powered Misinformation and Fake News Detection).
+Built solo in 24 hours for a hackathon (Track 1: AI + LLM-Based Deepfake Detection and Digital Evidence Analysis).
 
-## Features
+## How it works
 
-| Module | Status |
-|---|---|
-| Misinformation analyser (`misinfo_analyser.py`) | ✅ Done |
-| Campus rumour check against official records | ✅ Done (analyser side); VTOP sources wired, parsers tuned as outputs arrive |
-| Source and link credibility (`link_checker.py`) | ✅ Done |
-| cli-top / VTOP wrapper (`vtop.py`): attendance parsing and skip maths | ✅ Done |
-| Daily verified news briefing for your courses | 🔜 Planned |
-| Attendance alerts and study timetable | 🔜 Planned |
-| Scam message analyser (`scam_analyser.py`) | ✅ Done (from the earlier scam-detection idea) |
-
-## How the misinformation analyser works
-
-```python
-from misinfo_analyser import verify
-
-verify("Breaking!! CAT-2 postponed, forward to all", official_context=vtop_records)
-verify(article_text, url="https://example.com/story")
+```
+image ──► forensics.py ──────────────► signals + heatmaps ─┐
+            hash · metadata · ELA · noise · JPEG quality    │
+      ──► optional pretrained detector ────────────────────┤
+                                                            ▼
+          vision LLM sees the image AND its ELA heatmap ──► evidence_analyser.py
+          + every forensic finding                          hard rules · verdict · findings
+                                                            ▼
+                                       app.py (Streamlit)  +  report.py (evidence report)
 ```
 
-1. **Language signals** (offline): forward-chain pressure, vague sourcing ("my senior told me"), false certainty, sensational wording, deletion urgency.
-2. **Source credibility**: reputable-outlet and fact-checker allowlists, plus the link checker for look-alike and scam domains.
-3. **Claim extraction**: the LLM pulls out checkable claims and search queries (heuristic fallback if it fails).
-4. **Corroboration**: Google News RSS (no key needed) and the Google Fact Check Tools API (optional).
-5. **Verdict**: `true`, `likely_true`, `unverified`, `misleading` or `false`, with per-claim evidence, a comparison against official records, manipulation tactics and next steps.
-6. **Hard rules the LLM can't override**: a published fact-check rating the claim false, or an official record that contradicts it, always caps the score. With no matching official record, a campus rumour can't be rated above "unverified."
+1. **Evidence integrity**: SHA-256 and MD5 at upload, timestamp, tool version. A built-in checker confirms whether any file is byte-identical to the analysed one.
+2. **Metadata forensics**: camera make/model and capture time, editing software (Photoshop, Canva, Snapseed…), modified-after-capture dates, AI-generator traces (Stable Diffusion/ComfyUI settings, the IPTC `trainedAlgorithmicMedia` marker, generator names), Content Credentials (C2PA) presence.
+3. **Error-level analysis (ELA)**: re-compresses the image and maps how each area reacts, normalised by local texture so ordinary edges don't dominate, then boxes the most anomalous region.
+4. **Noise consistency** (experimental) and **JPEG quality estimate**.
+5. **Vision LLM**: receives the image, its ELA heatmap and all forensic findings; reports visual artifacts with locations (hands, eyes, face boundaries, lighting, garbled text, fonts that don't match in documents).
+6. **Hard rules the LLM can't override**: AI-generator metadata forces an "AI-generated" verdict; agreeing pixel tests and edit metadata set minimum scores; without the LLM, pixel tests alone can never produce a "fake" verdict.
+7. **Verdict**: manipulation score 0–100, type (AI-generated, face swap, spliced region, edited document, retouched), confidence, findings, limitations and next steps. The lowest band is "no evidence of manipulation found", never "authentic", because forensics can't prove a negative.
 
-**Robust by design:** all input and search results are treated as untrusted (defending against prompt injection hidden in articles), LLM output is validated, and if the API fails an offline check still returns a cautious result instead of crashing. Offline results never claim "true" or "false" outright, since nothing was fact-checked.
+## Measured on real data (`python tests/test_evidence.py`)
 
-## How the link checker works
+| Test set | Result |
+|---|---|
+| 4 real CASIA v2.0 forgeries with ground-truth masks | ELA box found in **4/4**, 62–89% of each box inside the truly edited area (3–14% by chance) |
+| 4 authentic full-size phone photos (iPhone, Nokia, Jolla) | **0/4** false alarms, about 2 s each |
+| Small edited thumbnails | ELA raises hints on some untouched images too, so pixel tests are reported as *hints*, never proof |
 
-**Offline checks:** brand impersonation (`sbi-kyc-update.xyz`), look-alike domains (`amaz0n.in`), raw IPs, punycode, the `@` trick, risky domain endings, phishing keywords, shorteners.
+Small sample sizes: these numbers show the pipeline works on real forgeries, not a benchmark score.
 
-**Online checks** (optional, cached in `.trustlens_cache.json`): domain age via RDAP, short-link expansion, Google Safe Browsing (`GSB_API_KEY`), VirusTotal (`VT_API_KEY`).
-
-## Setup
+## Run it
 
 ```bash
 pip install -r requirements.txt
-
-# LLM: Gemini (default) or Groq
-export GEMINI_API_KEY=your_key
-# export LLM_PROVIDER=groq GROQ_API_KEY=your_key LLM_MODEL=model_name
-
-# optional
-export FACTCHECK_API_KEY=your_key   # Google Fact Check Tools
-export GSB_API_KEY=your_key         # Google Safe Browsing
-export VT_API_KEY=your_key          # VirusTotal
-
-python misinfo_analyser.py   # runs the demo cases
+export GEMINI_API_KEY=your_key        # Windows PowerShell: $env:GEMINI_API_KEY="your_key"
+streamlit run app.py
 ```
 
-## VTOP via cli-top
+Pick a demo sample in the sidebar (CASIA forgeries show the dataset's ground-truth mask next to TrustLens's heatmap) or upload your own image. Without an API key, TrustLens runs the forensic tests only.
 
-`vtop.py` runs [cli-top](https://cli-top.acmvit.in) locally and turns its terminal output into data.
+Optional:
+- `LLM_PROVIDER=groq` with `GROQ_API_KEY` and a vision-capable `LLM_MODEL`
+- `DETECTOR_MODEL=<huggingface model id>` plus `pip install transformers torch` to add a pretrained AI-image/deepfake classifier
 
-```python
-from vtop import attendance, attendance_summary, what_if, exams, academic_calendar, official_records
-print(attendance_summary(attendance()))
-records, errors = official_records()   # class messages, exam schedule, academic calendar, holidays
-```
+## Files
 
-- **Tables**: joins wrapped cells, ignores blank lines from narrow terminals, re-joins split headers ("DAYS L" / "EFT").
-- **Attendance**: VTOP's rules (percentage rounded up, a lab counts as 2 classes); matches cli-top's alerts exactly. `what_if(course, skip=2)` for planning.
-- **Calendar**: the exam/holiday/class information is in the colours, so the parser reads the colour codes and turns the month grids into dated exam and holiday ranges.
-- **Interactive prompts**: answers cli-top's questions itself (latest semester, class group from `VTOP_CLASS_GROUP`, default "General (Semester)"); stops safely on any question it doesn't recognise.
-- **Demo mode**: `VTOP_DEMO=1` replays saved snapshots (written to the git-ignored `snapshots/` on every live call).
+| File | Purpose |
+|---|---|
+| `forensics.py` | Hash, metadata, ELA, noise and JPEG checks (Pillow + numpy only) |
+| `evidence_analyser.py` | Combines forensics, detector and vision LLM; hard rules; verdict |
+| `report.py` | Self-contained HTML evidence report (print to PDF) and JSON export |
+| `app.py` | Streamlit interface |
+| `llm.py` | Gemini / Groq calls, with image support |
+| `samples/` | Demo images with sources and ground truth ([details](samples/README.md)) |
+| `tests/` | Tests on the real samples |
 
-Check a saved output: `python vtop.py exams saved_exams.txt`. Run tests: `python tests/test_vtop.py`.
+Earlier prototypes from other tracks (`scam_analyser.py`, `link_checker.py`, `misinfo_analyser.py`, `vtop.py`) remain in the repo but aren't part of the Track 1 app.
 
-## Privacy
+## Limitations
 
-VTOP credentials stay in cli-top's encrypted local store. TrustLens only passes the specific official records relevant to a claim (announcements, calendar, exam dates) to the LLM, never passwords or full academic records.
+- Forensic tests show signs of manipulation; they can't prove an image is authentic.
+- Images forwarded through WhatsApp or social media lose metadata and fine detail, which hides evidence.
+- Modern AI generators can produce very clean images; visual analysis lowers its confidence rather than calling them real.
+- Video and audio deepfakes are on the roadmap, not in this build.
 
-## Report misinformation and fraud
+## If you're targeted
 
-- Suspected fraud calls or messages: Chakshu on [sancharsaathi.gov.in](https://sancharsaathi.gov.in)
-- If you've lost money: call **1930** or report at [cybercrime.gov.in](https://cybercrime.gov.in)
+Save the evidence report (it records the file's hash) and report at [cybercrime.gov.in](https://cybercrime.gov.in) or call **1930**.
