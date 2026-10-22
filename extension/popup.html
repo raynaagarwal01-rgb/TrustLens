@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TrustLens</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Archivo+Narrow:wght@700&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { width: 340px; }
+  .page { padding: 0.9rem 0.9rem 1rem; }
+  .brand { margin-bottom: 0.8rem; }
+  .status { display: grid; gap: 0.2rem; font-size: 0.8125rem; margin-bottom: 0.9rem; }
+  .status span::before { content: "●"; margin-right: 0.4rem; color: var(--rule); }
+  .status .on::before { color: var(--good); } .status .off::before { color: var(--warn); }
+  label { font-weight: 600; font-size: 0.875rem; display: block; margin-bottom: 0.3rem; }
+  textarea { width: 100%; min-height: 6.5rem; font: inherit; font-size: 0.875rem; padding: 0.5rem; border: 1px solid var(--rule); border-radius: 4px; background: #fff; resize: vertical; }
+  .row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  .row .btn { flex: 1; justify-content: center; }
+  .how { font-size: 0.8125rem; color: var(--graphite); margin: 0.9rem 0 0; padding-left: 1rem; }
+  details { margin-top: 0.8rem; font-size: 0.8125rem; color: var(--graphite); }
+  details input { width: 100%; font: inherit; padding: 0.35rem; margin-top: 0.3rem; border: 1px solid var(--rule); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="brand"><b>TrustLens</b><span>Is this real?</span></header>
+  <div class="status" id="status" aria-live="polite"><span>Looking for TrustLens on this computer…</span></div>
+  <label for="msg">Fact-check a forwarded message</label>
+  <textarea id="msg" placeholder="Paste a WhatsApp forward, a post or a claim"></textarea>
+  <div class="row">
+    <button class="btn btn--marker" id="go">Fact-check</button>
+    <a class="btn" id="app" href="http://127.0.0.1:8000/" target="_blank">Open TrustLens</a>
+  </div>
+  <ul class="how">
+    <li>Right-click an image or video: <b>Check with TrustLens</b></li>
+    <li>Select text and right-click: <b>Fact-check with TrustLens</b></li>
+    <li>Right-click empty space on an article: <b>Fact-check this page</b></li>
+  </ul>
+  <details>
+    <summary>TrustLens address</summary>
+    <input id="server" value="http://127.0.0.1:8000" aria-label="TrustLens address">
+  </details>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

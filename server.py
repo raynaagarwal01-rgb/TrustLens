@@ -701,6 +701,41 @@ async def report_pdf(request: Request):
                     headers={"Content-Disposition": f'{disp}; filename="trustlens_report_{cid}.pdf"'})
 
 
+CAMPUS_WORDS = ("exam", "fat", "cat-1", "cat-2", "cat1", "cat2", "vit", "vtop", "holiday", "class", "semester",
+                "postpone", "reschedul", "hostel", "mess", "ffcs", "slot", "proctor", "dean", "coe")
+
+
+async def check_text(request: Request):
+    """Fact-check a message, post or claim (the Chrome extension's "Fact-check with TrustLens").
+    Body: {"text": "...", "url": "page it came from (optional)"}."""
+    import misinfo_analyser
+    body = await request.json()
+    text = str(body.get("text", "")).strip()[:8000]
+    url = str(body.get("url", "") or "").strip() or None
+    if len(text) < 12:
+        return err("Select at least a sentence to fact-check.")
+    if url and not url.startswith(("http://", "https://")):
+        url = None
+    official = None
+    low = text.lower()
+    if any(w in low for w in CAMPUS_WORDS):  # a campus claim: also check it against VTOP records
+        try:
+            official = campus_check.load_official(live=False)["records"] or None
+        except Exception:
+            official = None
+    try:
+        result = await run_in_threadpool(misinfo_analyser.verify, text, url, official)
+    except Exception as e:
+        return err(f"The fact-check failed: {type(e).__name__}: {str(e)[:200]}", 502)
+    result["text"] = text
+    result["page_url"] = url
+    result["checked_vtop"] = bool(official)
+    result["llm_used"] = not result.get("fallback")
+    custody.record("text_fact_check", hashlib.sha256(text.encode()).hexdigest(),
+                   {"verdict": result["verdict"], "score": result["credibility_score"], "page": url or ""})
+    return ok(result)
+
+
 async def verify_report(request: Request):
     token, pem = "", None
     if request.headers.get("content-type", "").startswith("multipart/"):
@@ -908,6 +943,7 @@ routes = [
     Route("/api/cases/{cid}/report", report),
     Route("/api/cases/{cid}/report.pdf", report_pdf),
     Route("/api/verify-report", verify_report, methods=["POST"]),
+    Route("/api/check-text", check_text, methods=["POST"]),
     Route("/api/report-key", report_key),
     Route("/api/batches", list_batches),
     Route("/api/batches", create_batch, methods=["POST"]),

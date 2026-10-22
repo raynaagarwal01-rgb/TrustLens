@@ -31,6 +31,7 @@ Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DE
 | **Voice notes** | Spectrogram with marked edit points, digital-silence detection, transcript (Groq Whisper or Gemini) and a scam check of what is said |
 | **Screenshots** | Payment receipts and chats read by the AI review, then checked by code: 12-digit UPI references, real dates that match their weekday, one amount everywhere, message times in order |
 | **Context** | Circulars checked against VTOP via cli-top automatically, with every step shown; earlier copies of a photo online (confirmed by image fingerprint); event posters against official listings |
+| **Chrome extension** | Right-click any image or video on a website to check it, or select text (a WhatsApp Web forward, a post, an article) to fact-check it: claims, news coverage, published fact-checks, manipulation tactics, VTOP records for campus claims. [Install](extension/README.md) |
 | **Many files** | Several files or a whole WhatsApp chat export (.zip): analysed in the background, sorted by risk, each file matched to its sender and time, CSV export |
 | **Evidence** | Plain three-line summary in English and Hindi, HTML report, signed PDF report with a QR code, "Verify a report" page and `python verify_report.py`, hash-chained custody log |
 
@@ -120,6 +121,7 @@ For example, the demo forged notice says the Database Systems FAT moved to 20-No
 | `summary.py` | Three-line English and Hindi summary (templates, no AI) |
 | `report.py`, `pdf_report.py`, `signing.py`, `verify_report.py` | HTML report, signed PDF report, verification |
 | `batch.py` | Batches and WhatsApp export parsing |
+| `extension/`, `misinfo_analyser.py` | Chrome extension (right-click to check images, videos, text, pages); the text fact-checker behind `/api/check-text` |
 | `custody.py` | Hash-chained chain-of-custody log |
 | `llm.py`, `envfile.py` | Gemini / Groq calls and transcription; `.env` loading |
 | `samples/`, `tools/make_demo_samples.py` | Demo evidence with sources ([details](samples/README.md)) |
