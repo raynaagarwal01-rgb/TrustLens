@@ -164,8 +164,6 @@ def copy_move(img: Image.Image, max_side: int = 1600) -> tuple[dict, list[dict],
     w = max(2, rgb.width // 500)
     for p, q in zip(s_in, d_in):
         dr.line([tuple(p / scale), tuple(q / scale)], fill=(242, 194, 48), width=w)
-    for b in boxes:
-        dr.rectangle(b, outline=(0, 230, 255), width=w * 2)
     g = np.asarray(work.convert("L"), np.float32)
     flat_share = float((fx._blocks(np.abs(np.diff(g, axis=1, append=g[:, -1:])), 16, np.mean) < 1.0).mean())
     document_like = flat_share > 0.4
@@ -177,8 +175,9 @@ def copy_move(img: Image.Image, max_side: int = 1600) -> tuple[dict, list[dict],
         sev, note = ("high" if n_in >= 25 else "medium"), (" Repeating patterns (tiles, windows) can also match, "
                                                            "so check the layer.")
     signals = [_signal("Cloned area (copy-move)", sev,
-                       f"{n_in} matching points show the area at {boxes[0]} repeated at {boxes[1]}. Copying part of "
-                       "an image over another part is used to hide or duplicate objects." + note, "edited")]
+                       f"{n_in} matching points show the areas at {boxes[0]} and {boxes[1]} are copies of each other "
+                       "(the test can't tell which one is the original). Copying part of an image over another part "
+                       "is used to hide or duplicate objects." + note, "edited")]
     return stats, signals, vis
 
 # ---------------------------------------------------------------------------
@@ -299,7 +298,7 @@ def layer(img: Image.Image, kind: str) -> Image.Image:
     if kind == "bitplane":
         bp = (np.asarray(rgb.convert("L")) >> 1) & 1
         return Image.fromarray((bp * 255).astype(np.uint8), "L").convert("RGB")
-    if kind == "noise":
+    if kind == "noise_residual":
         med = np.asarray(rgb.convert("L").filter(ImageFilter.MedianFilter(3)), np.float32)
         return _to_img(np.abs(g - med), colour=False)
     raise ValueError(f"unknown layer {kind}")
@@ -313,7 +312,7 @@ LAYERS = {
     "pca": "Colour PCA: colour differences the eye can't easily see; pasted objects often separate",
     "minmax": "Min/max deviation: pixels unlike all their neighbours",
     "bitplane": "Bit plane: one bit of brightness; edited areas break the noise texture",
-    "noise": "Noise residual: what remains after removing the picture; noise should look uniform",
+    "noise_residual": "Noise residual: what remains after removing the picture; noise should look uniform",
 }
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,12 @@
 pillow
 numpy
-streamlit
-google-genai
-requests
-# optional: groq, transformers, torch
 opencv-python-headless
+requests
+google-genai
+starlette
+uvicorn
+python-multipart
+# legacy interface: streamlit (streamlit run app.py)
+streamlit
+# optional: groq, transformers, torch
 # optional: c2pa-python (Content Credentials signature verification)

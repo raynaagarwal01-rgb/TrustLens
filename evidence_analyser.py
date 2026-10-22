@@ -289,6 +289,16 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
     if score < 30:
         ftype = "none" if ftype in ("unknown", "none") else ftype
 
+    # A hard rule is direct evidence (a signed declaration, a stored preview, a clone), so it sets a
+    # confidence floor even when the visual review didn't run.
+    rank = {"low": 0, "medium": 1, "high": 2}
+    rule_conf = "high" if floor >= 85 else "medium" if floor >= 70 else None
+    if rule_conf and rank[rule_conf] > rank[confidence]:
+        confidence = rule_conf
+    if not llm and rule_notes:
+        explanation = ("AI visual review didn't run, but the forensic tests found direct evidence, "
+                       "listed below.")
+
     if min(fx["integrity"]["width"], fx["integrity"]["height"]) < 400 and confidence == "high":
         confidence = "medium"
 

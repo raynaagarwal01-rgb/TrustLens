@@ -1,135 +1,102 @@
 # TrustLens
 
-**AI + LLM-based deepfake detection and digital evidence analysis.** Upload a photo, screenshot, certificate or circular: TrustLens checks whether it's AI-generated, deepfaked or edited, shows *where*, explains the evidence in plain language, and produces a hash-stamped evidence report.
+**AI + LLM-based deepfake detection and digital evidence analysis.** Open a photo, screenshot, certificate, notice or event poster: TrustLens checks whether it's AI-generated, deepfaked or edited, shows *where* on the image, explains the evidence in plain language, checks campus claims against official VTOP records, and keeps a hash-chained chain of custody with an exportable evidence report.
 
-Built solo in 24 hours for a hackathon (Track 1: AI + LLM-Based Deepfake Detection and Digital Evidence Analysis).
-
-## How it works
-
-```
-image ──► forensics.py ──────────────► signals + heatmaps ─┐
-            hash · metadata · ELA · noise · JPEG quality    │
-      ──► optional pretrained detector ────────────────────┤
-                                                            ▼
-          vision LLM sees the image AND its ELA heatmap ──► evidence_analyser.py
-          + every forensic finding                          hard rules · verdict · findings
-                                                            ▼
-                                       app.py (Streamlit)  +  report.py (evidence report)
-```
-
-1. **Evidence integrity**: SHA-256 and MD5 at upload, timestamp, tool version. A built-in checker confirms whether any file is byte-identical to the analysed one.
-2. **Metadata forensics**: camera make/model and capture time, editing software (Photoshop, Canva, Snapseed…), modified-after-capture dates, AI-generator traces (Stable Diffusion/ComfyUI settings, the IPTC `trainedAlgorithmicMedia` marker, generator names), Content Credentials (C2PA): TrustLens reads what the manifest declares (e.g. `trainedAlgorithmicMedia` = AI-generated, who signed it, SynthID watermark noted).
-3. **Error-level analysis (ELA)**: re-compresses the image and maps how each area reacts, normalised by local texture so ordinary edges don't dominate, then boxes the most anomalous region.
-4. **Noise consistency** (experimental) and **JPEG quality estimate**.
-5. **Vision LLM**: receives the image, its ELA heatmap and all forensic findings; reports visual artifacts with locations (hands, eyes, face boundaries, lighting, garbled text, fonts that don't match in documents).
-6. **Hard rules the LLM can't override**: AI-generator metadata forces an "AI-generated" verdict; agreeing pixel tests and edit metadata set minimum scores; without the LLM, pixel tests alone can never produce a "fake" verdict.
-7. **Verdict**: manipulation score 0–100, type (AI-generated, face swap, spliced region, edited document, retouched), confidence, findings, limitations and next steps. The lowest band is "no evidence of manipulation found", never "authentic", because forensics can't prove a negative.
-
-## Evidence-grade extras (inspired by Sherloq, c2patool and forenix-oss)
-
-Techniques from [Sherloq](https://github.com/GuidoBartoli/sherloq), [c2patool](https://github.com/contentauth/c2patool) and [forenix-oss](https://github.com/thunderstornX/forenix-oss), re-implemented in TrustLens (no code copied; Sherloq is GPL):
-
-- **Chain of custody** (forenix): every analysis, VTOP check and report export goes into `custody_log.jsonl`, a SHA-256 hash-chained log. Editing, deleting or reordering any entry breaks the chain. Verify independently: `python custody.py verify`.
-- **Embedded thumbnail analysis** (Sherloq): cameras store a small preview inside the file; editors often change the photo but not the preview. Caught 3/3 edited test photos and pointed at the edited area; medium hints on 2 of 37 authentic camera test files.
-- **GPS location** (Sherloq) from EXIF, with a privacy note.
-- **Perceptual hashes** (Sherloq file digest): pHash/dHash/aHash match re-saved or resized copies of the same picture even when the SHA-256 differs.
-- **Find the original online** (Sherloq similar search): links to Google Lens, Bing, TinEye and Yandex.
-- **Content Credentials reading** (c2patool): declared source type, actions, signer and SynthID watermark (signature verification not implemented yet).
-
-## Campus check: notices vs official VTOP records
-
-Forged circulars and WhatsApp forwards ("DBMS FAT postponed to 20-Nov!") are digital evidence too. For a notice or screenshot, TrustLens:
-
-1. reads the notice and its dated claims with the vision LLM,
-2. fetches the student's **official records from VTOP through [cli-top](https://cli-top.acmvit.in)**: exam schedule, academic calendar and holidays (`vtop.py` answers cli-top's semester and class-group prompts itself and reads the colour-coded calendar),
-3. compares them **deterministically** (no AI decides whether two dates match): e.g. *"VTOP exam schedule: BACSE202 Database Systems FAT on 13-Nov-2026"* vs the notice's 20-Nov,
-4. raises the evidence verdict to "likely manipulated (edited document)" when the notice contradicts official records, and adds the comparison to the evidence report.
-
-It uses the latest saved cli-top snapshot by default (fast, works offline) or fetches live on request. Tested live on a real VTOP account: exam schedule and current-semester calendar parsed correctly.
-
-## Event / hackathon check: is it real?
-
-Students lose money to fake hackathons, workshops and internships that collect a "registration fee". For a poster or forward, TrustLens:
-
-1. reads the event name, organiser, dates, fee, UPI IDs, links and contacts with the vision LLM,
-2. checks whether the event **actually exists**: in **VTOP club events via cli-top** (`cli-top events`) and on the web (Groq browser search with `openai/gpt-oss-120b`, Bing fallback) for an official site or listing on Devfolio, Unstop, MLH, Devpost and similar,
-3. flags scam signs: fee paid to a UPI ID, paid "hackathons", urgency ("last date today, 50 seats left"), personal Gmail for an organisation, look-alike or brand-new registration domains (reuses `scam_analyser.py` and `link_checker.py`),
-4. catches **impersonation**: a real event copied onto a poster whose registration or payment link isn't the official one, or that charges a fee when the official event is free,
-5. gives **Event verified / Unverified / Likely scam** with reasons and sources. "Not found online" is reported as unverified, never as proof of a scam.
-
-## Measured on real data (`python tests/test_evidence.py`)
-
-| Test set | Result |
-|---|---|
-| 4 real CASIA v2.0 forgeries with ground-truth masks | ELA box found in **4/4**, 62–89% of each box inside the truly edited area (3–14% by chance) |
-| 4 authentic full-size phone photos (iPhone, Nokia, Jolla) | **0/4** false alarms, about 2 s each |
-| 11 real photos (`data/real/`, Unsplash) | **0/11** false alarms |
-| 13 AI-generated faces (`data/fake/`, made with Google's generative AI) | **13/13** identified as AI-generated from their Google-signed Content Credentials, even when the LLM was told to say "genuine" |
-| Small edited thumbnails | ELA raises hints on some untouched images too, so pixel tests are reported as *hints*, never proof |
-
-Live check with the vision LLM (Groq `qwen/qwen3.8-27b`): a **screenshot** of an AI face, which strips its Content Credentials as WhatsApp would, was still identified as AI-generated from visual analysis; a screenshot of the authentic iPhone photo came back "no evidence of manipulation found". Single trials, not a benchmark.
-
-Small sample sizes: these numbers show the pipeline works on real forgeries, not a benchmark score.
+Built for a hackathon (Track 1: AI + LLM-Based Deepfake Detection and Digital Evidence Analysis).
 
 ## Run it
 
 ```bash
 pip install -r requirements.txt
-export GEMINI_API_KEY=your_key        # Windows PowerShell: $env:GEMINI_API_KEY="your_key"
-streamlit run app.py
+export GROQ_API_KEY=your_key LLM_PROVIDER=groq LLM_MODEL=qwen/qwen3.8-27b
+#   or: export GEMINI_API_KEY=your_key
+#   Windows PowerShell: $env:GROQ_API_KEY="..."; $env:LLM_PROVIDER="groq"; $env:LLM_MODEL="qwen/qwen3.8-27b"
+python server.py
 ```
 
-Pick a demo sample in the sidebar (CASIA forgeries show the dataset's ground-truth mask next to TrustLens's heatmap) or upload your own image. Without an API key, TrustLens runs the forensic tests only.
+Your browser opens at `http://127.0.0.1:8000`. The interface is prebuilt in `web/dist`, so no Node.js is needed to run it. Without an API key, TrustLens still runs every forensic test; only the AI visual review and the notice/event checks (which read text in images) need a key.
 
-Optional:
-- `LLM_PROVIDER=groq` with `GROQ_API_KEY` and a vision-capable `LLM_MODEL` (tested with `qwen/qwen3.8-27b`)
-- `DETECTOR_MODEL=<huggingface model id>` plus `pip install transformers torch` to add a pretrained AI-image/deepfake classifier
+Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DETECTOR_MODEL=<huggingface id>` with `transformers` adds a pretrained classifier. The previous Streamlit interface still works: `streamlit run app.py`.
 
-## Synthetic Face Dataset & Model Training
+**Editing the interface:** `cd web && npm install && npm run build` (or `npm run watch` while `python server.py` runs). Design notes: [web/DESIGN.md](web/DESIGN.md).
 
-TrustLens includes a curated dataset of photorealistic AI-generated faces and model training pipelines:
+## The interface
 
-- **Dataset**: High-resolution (1024x1024) photorealistic synthetic faces in `data/fake/`, paired reference faces in `data/real/`, and metadata manifest in `data/dataset_manifest.json`.
-- **Training**:
-  ```bash
-  # Train baseline classifier (runs immediately):
-  python train_face_detector.py --backend baseline
+- **Evidence locker** (left): your cases, kept in `cases/` across restarts, plus demo evidence grouped by kind, and live system status (AI review, clone detection, signature checks, VTOP, custody chain).
+- **Viewer**: the image framed by a forensic measurement scale. Drag the wipe to compare the photo with any analysis layer (error levels, JPEG ghost, clone map, camera preview, difference from a reference, noise, and seven inspection layers). Numbered evidence markers show regions the tests point at; a magnifier and, for dataset samples, the ground-truth mask are one click away.
+- **Verdict**: the finding in plain words, the score on a ruled scale, confidence, and a "why" list linked to the markers.
+- **Details**: findings, every test that ran (experimental ones labelled), metadata with JPEG structure, quantisation table and histogram, Content Credentials provenance, campus checks, and custody & integrity.
+- **Evidence report**: a self-contained HTML report (print to PDF) with hashes, findings, layers and the custody log.
 
-  # Train deep learning transfer learning model (PyTorch):
-  pip install torch torchvision
-  python train_face_detector.py --backend pytorch --epochs 15
-  ```
-- **Dataset Scaler**: Run `python data/download_synthetic_dataset.py` to fetch additional samples.
-- **Standalone Face Analyser**: Run `python face_analyser.py` to analyze images using metadata, ELA, and 2D FFT frequency spectrum analysis.
+## How it works
+
+```
+                ┌ forensics.py   hashes, metadata, C2PA, thumbnail, GPS, ELA, noise, JPEG quality
+image ──────────┤ advanced.py    JPEG ghost, copy-move, grid alignment, inspection layers, structure
+                └ vision LLM     sees the image AND its error-level map, plus every forensic finding
+                        │
+                evidence_analyser.py  hard rules the LLM can't override → verdict, type, findings
+                        │
+     campus_check.py (VTOP via cli-top)   event_check.py (web + VTOP events)   custody.py (hash chain)
+                        │
+           server.py (Starlette API)  ──►  web/ (React + TypeScript)   report.py (evidence report)
+```
+
+**Hard rules the LLM can't override:** Content Credentials or metadata declaring AI generation force "AI-generated"; credentials that fail verification (image changed after signing), a camera preview showing a different version, or a strong copy-move match set minimum scores; a notice that contradicts VTOP records becomes "likely manipulated (edited document)". Without the LLM, pixel tests alone never produce a "manipulated" verdict. The lowest band is "no evidence of manipulation found", never "authentic", because forensics can't prove a negative.
+
+## Forensic tools and how they were calibrated
+
+Techniques follow [Sherloq](https://github.com/GuidoBartoli/sherloq)'s tool list, [c2patool](https://github.com/contentauth/c2patool) and [forenix-oss](https://github.com/thunderstornX/forenix-oss), re-implemented here (no code copied; Sherloq is GPL). Each tool was tested on real images before it was allowed to affect the verdict (`tests/test_advanced.py`, `tests/test_evidence.py`, `tests/test_custody.py`).
+
+| Tool | What it finds | Measured | In verdict |
+|---|---|---|---|
+| Content Credentials (C2PA) | Signed declarations such as `trainedAlgorithmicMedia`; signer; SynthID; ingredients | 13/13 AI faces identified from Google-signed credentials | Yes |
+| C2PA signature verification | Image changed after signing | Uses `c2pa-python` when installed | Yes |
+| Embedded thumbnail | Camera preview still shows the original | 3/3 edited photos caught and located; hints on 2/37 odd camera test files | Yes |
+| Error-level analysis | Areas that re-compress differently | Region in 4/4 CASIA forgeries, 62–89% inside the true edit (3–14% by chance); hints on some untouched thumbnails | Hint |
+| JPEG ghost | Content pasted from a lower-quality JPEG | 3/3 such splices located in phone photos; none on authentic photos | Hint |
+| Copy-move | Cloned areas (SIFT self-matching + RANSAC) | CASIA clone found; no medium/high alarms on real photos or AI faces; downgraded on documents | Yes |
+| JPEG grid alignment | Crop or shift after an earlier save | 0/58 false alarms; ~45% of high-quality crops | Yes |
+| Median filtering, contrast enhancement | Smoothing, levels edits | Did not separate edited from authentic | No (shown as experimental) |
+| Noise consistency | Different noise patterns | Lights up skies | No (experimental layer) |
+| Perceptual hashes, GPS, JPEG structure, histogram, reference comparison | Evidence context | | Context |
+| Chain of custody | Hash-chained log of every action | Detects edited, deleted or reordered entries | Integrity |
+
+Real-photo baselines: **0/4** false alarms on authentic full-size phone photos and **0/11** on real web portraits. Live with the vision model (Groq `qwen/qwen3.8-27b`): a screenshot of an AI face, which strips its credentials as WhatsApp would, was still identified as AI-generated; a screenshot of an authentic photo came back "no evidence". Small samples: these show the tools work on real data, not a benchmark score.
+
+## Campus checks
+
+**Is this notice true?** For circulars and forwarded announcements, the vision model reads the dated claims; `vtop.py` fetches your exam schedule, academic calendar and holidays from VTOP through [cli-top](https://cli-top.acmvit.in) (answering its semester and class-group prompts, reading the colour-coded calendar); `campus_check.py` compares dates **in code**, not with AI. Tested live on a real VTOP account.
+
+**Is this event real?** For hackathon, workshop and internship posters, `event_check.py` looks for the event in VTOP club events and on the web (Groq browser search, Bing fallback), flags fees to UPI IDs, urgency, personal email, risky links, and impersonation of real events. "Not found online" is reported as unverified, never as proof of a scam.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `forensics.py` | Hash, metadata, ELA, noise and JPEG checks (Pillow + numpy only) |
-| `evidence_analyser.py` | Combines forensics, detector and vision LLM; hard rules; verdict |
-| `custody.py` | Hash-chained chain-of-custody log and offline verifier |
-| `report.py` | Self-contained HTML evidence report (print to PDF) and JSON export |
-| `app.py` | Streamlit interface |
-| `campus_check.py` | Notice claims vs official VTOP records (cli-top) |
-| `event_check.py` | Event/hackathon existence (VTOP events + web) and registration scam checks |
-| `vtop.py` | cli-top wrapper: runs commands, answers prompts, parses tables and the colour-coded calendar |
-| `llm.py` | Gemini / Groq calls, with image support |
-| `samples/` | Demo images with sources and ground truth ([details](samples/README.md)) |
-| `tests/` | Tests on the real samples |
-| `data/` | Synthetic AI-generated faces, reference real faces, and dataset manifest |
-| `face_analyser.py` | Experimental standalone face analyser (metadata, ELA, FFT). **Not calibrated yet:** its fixed thresholds currently label real web photos as AI-generated too, so it isn't used by the app |
-| `train_face_detector.py` | Training pipeline scaffold (baseline + PyTorch). Needs a large dataset: the small baseline in `models/` (16–26 images) is not a meaningful result |
+| `server.py` | Starlette API and the web interface; cases stored in `cases/` |
+| `web/` | React + TypeScript interface (`src/`), built bundle (`dist/`), design notes |
+| `forensics.py` | Hashes, metadata, C2PA, thumbnail, GPS, perceptual hashes, ELA, noise, JPEG quality |
+| `advanced.py` | JPEG ghost, copy-move, grid alignment, experimental tools, inspection layers, structure, comparison |
+| `evidence_analyser.py` | Combines everything with the vision LLM; hard rules; verdict |
+| `custody.py` | Hash-chained chain-of-custody log; `python custody.py verify` |
+| `report.py` | Self-contained HTML evidence report |
+| `campus_check.py`, `event_check.py`, `vtop.py` | Campus checks and the cli-top wrapper |
+| `llm.py` | Gemini / Groq calls with image support |
+| `samples/` | Demo evidence with sources and ground truth ([details](samples/README.md)) |
+| `tests/` | Tests on real samples |
+| `app.py` | Earlier Streamlit interface |
+| `data/`, `face_analyser.py`, `train_face_detector.py` | Face dataset and an experimental analyser/trainer: **not calibrated** (the analyser labels real web photos as AI-generated; the 16–26 image baseline isn't meaningful), so the app doesn't use them |
 
-`scam_analyser.py` and `link_checker.py` (from an earlier prototype) are reused by the event check; `misinfo_analyser.py` isn't part of the Track 1 app.
+`scam_analyser.py` and `link_checker.py` are reused by the event check; `misinfo_analyser.py` is from an earlier prototype.
 
 ## Limitations
 
 - Forensic tests show signs of manipulation; they can't prove an image is authentic.
-- Images forwarded through WhatsApp or social media lose metadata and fine detail, which hides evidence.
-- Modern AI generators can produce very clean images; visual analysis lowers its confidence rather than calling them real.
-- Video and audio deepfakes are on the roadmap, not in this build.
+- Images forwarded through WhatsApp or social media lose metadata, credentials and fine detail.
+- Modern AI generators can produce very clean images; the visual review lowers its confidence rather than calling them real.
+- Video and audio deepfakes are on the roadmap.
 
 ## If you're targeted
 
-Save the evidence report (it records the file's hash) and report at [cybercrime.gov.in](https://cybercrime.gov.in) or call **1930**.
+Export the evidence report (it records the file's hash and custody log) and report at [cybercrime.gov.in](https://cybercrime.gov.in) or call **1930**.

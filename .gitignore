@@ -8,3 +8,6 @@ venv/
 .trustlens_cache.json
 snapshots/
 custody_log.jsonl
+cases/
+web/node_modules
+web/node_modules/
