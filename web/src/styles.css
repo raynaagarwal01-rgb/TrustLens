@@ -583,3 +583,8 @@ p { margin: 0 0 0.6em; max-width: 72ch; }
   .batch, .verify { padding: 1rem; }
   .timeline { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+.play-error { display: grid; gap: 0.5rem; justify-items: start; max-width: 28rem; padding: 1.25rem; color: #e9eef2; font-size: var(--s-13); }
+.play-error b { font-size: var(--s-15); }
+.play-error .btn { background: transparent; color: #e9eef2; border-color: #c6d0d8; }
+.play-error--inline { color: #e0a83a; font-size: var(--s-13); }

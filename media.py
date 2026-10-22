@@ -131,3 +131,21 @@ def safe_remove(path: Path) -> None:
         os.remove(path)
     except OSError:
         pass
+
+
+def make_preview(src: str, out: str, kind: str) -> bool:
+    """A copy every browser can play (H.264/AAC MP4 or MP3), for the player only. The original file stays
+    the evidence: analysis, hashes and reports always use the original."""
+    exe = ffmpeg_path()
+    if not exe:
+        return False
+    if kind == "video":
+        args = ["-t", "300", "-vf", "scale='min(1280,iw)':-2,format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
+                "-crf", "26", "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-movflags", "+faststart"]
+    else:
+        args = ["-t", "600", "-vn", "-c:a", "libmp3lame", "-b:a", "128k"]
+    try:
+        r = subprocess.run([exe, "-v", "error", "-y", "-i", src, *args, out], capture_output=True, timeout=300)
+        return r.returncode == 0 and os.path.getsize(out) > 0
+    except Exception:
+        return False

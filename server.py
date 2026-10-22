@@ -123,6 +123,14 @@ def analyse_any(data: bytes, name: str, use_llm: bool) -> dict:
     raise ValueError(f"{name} isn't an image, video or audio file TrustLens can read.")
 
 
+def _preview(d: Path, kind: str) -> Path | None:
+    """Browser-playable copy of a video or voice note, made once per case."""
+    out = d / ("preview.mp4" if kind == "video" else "preview.mp3")
+    if out.exists() and out.stat().st_size > 0:
+        return out
+    return out if media.make_preview(str(d / "original.bin"), str(out), kind) else None
+
+
 def _store_images(d: Path, images: dict):
     folder = d / "images"
     folder.mkdir(exist_ok=True)
@@ -165,6 +173,7 @@ def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
         images["ground_truth"] = Image.open(gt).convert("L")
     if result.get("media_kind") in STORED_KINDS:
         _store_images(d, images)
+        _preview(d, result["media_kind"])
     meta = {"id": cid, "sha256": sha, "name": safe, "source": source, "created": time.time(), "use_llm": use_llm,
             "media_kind": result.get("media_kind", "image")}
     result["case"] = meta
@@ -439,16 +448,24 @@ async def case_image(request: Request):
 
 
 async def case_media(request: Request):
-    """The original file, for the video / audio player."""
+    """A browser-playable copy for the video / audio player (the original if no copy could be made).
+    FileResponse answers Range requests, which browsers need to play and seek MP4."""
+    cid = request.path_params["cid"]
     try:
-        entry = load_case(request.path_params["cid"])
+        entry = load_case(cid)
     except KeyError:
         return err("No such case.", 404)
+    kind = entry["result"].get("media_kind")
+    if kind in STORED_KINDS:
+        prev = await run_in_threadpool(_preview, _case_dir(cid), kind)
+        if prev is not None:
+            return FileResponse(prev, media_type="video/mp4" if kind == "video" else "audio/mpeg",
+                                headers={"Cache-Control": "max-age=86400"})
     name = entry["result"]["case"]["name"]
     mt = mimetypes.guess_type(name)[0] or {"video": "video/mp4", "audio": "audio/mpeg"}.get(entry["result"].get("media_kind"), "application/octet-stream")
     if name.lower().endswith((".opus", ".ogg")):
         mt = "audio/ogg"
-    return Response(entry["data"], media_type=mt, headers={"Cache-Control": "max-age=86400", "Accept-Ranges": "none"})
+    return FileResponse(_case_dir(cid) / "original.bin", media_type=mt, headers={"Cache-Control": "max-age=86400"})
 
 
 async def case_layers(request: Request):

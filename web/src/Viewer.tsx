@@ -72,6 +72,7 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const [frameSel, setFrameSel] = useState("");
   const [playing, setPlaying] = useState(false);
+  const [playErr, setPlayErr] = useState(false);
   const frame = useRef<HTMLDivElement>(null);
   const bust = result?.comparison ? result.comparison.other_name : "";
 
@@ -80,6 +81,7 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
     setPos(50);
     setFrameSel(result?.video?.key_frame ?? "");
     setPlaying(false);
+    setPlayErr(false);
   }, [id, layers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const marks = useMemo(() => (result ? evidenceMarks(result) : []), [result]);
@@ -150,7 +152,16 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
         <div className="stage" onMouseMove={onMove} onMouseLeave={() => setLoupe(null)}>
           {playing && video ? (
             <div className="stage__frame">
-              <video src={api.media(id)} controls autoPlay playsInline aria-label={`Video: ${result.case.name}`} />
+              {playErr ? (
+                <div className="play-error" role="alert">
+                  <b>This browser can't play the video.</b>
+                  <span>The analysis used the original file, so the result is unaffected. Try Chrome or Edge, or open the file in a video player.</span>
+                  <a className="btn" href={api.media(id)} download={result.case.name}>Download a copy</a>
+                </div>
+              ) : (
+                <video src={api.media(id)} controls autoPlay playsInline aria-label={`Video: ${result.case.name}`}
+                       onError={() => setPlayErr(true)} />
+              )}
             </div>
           ) : (
             <div className="stage__frame" ref={frame}>
@@ -213,7 +224,9 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
 
       {isAudio && (
         <div className="player">
-          <audio src={api.media(id)} controls preload="metadata" aria-label={`Play ${result.case.name}`} />
+          {playErr
+            ? <span className="play-error--inline">This browser can't play this audio format; the analysis used the original file.</span>
+            : <audio src={api.media(id)} controls preload="metadata" aria-label={`Play ${result.case.name}`} onError={() => setPlayErr(true)} />}
           <span className="muted">
             {result.audio?.measurements?.duration?.toFixed(1)}s · {result.audio?.measurements?.sample_rate} Hz · {result.audio?.codec || "audio"}
           </span>
@@ -257,7 +270,7 @@ export function Viewer({ result, layers, busyPreview, activeMark }: Props) {
         </div>
       </div>
       <p className="layer-caption">
-        {playing ? "The original video file, as received." : caption}
+        {playing ? "A playable copy of the video. The analysis, fingerprints and reports use the original file." : caption}
         {hasGt && showGt && " Red: the area the dataset says was actually edited."}
       </p>
     </div>
