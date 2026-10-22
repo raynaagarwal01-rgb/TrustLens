@@ -231,14 +231,17 @@ def apply_to_result(result: dict, check: dict) -> dict:
     bad = [c for c in check["checks"] if c["status"] == "contradicted"]
     if bad:
         import evidence_analyser as ea
-        floor = 70 if len(bad) >= 2 else 60
+        floor = 85 if len(bad) >= 3 else 75 if len(bad) == 2 else 60
         if result["manipulation_score"] < floor:
             result["manipulation_score"] = floor
             result["verdict"], result["verdict_label"] = ea._band(floor)
         if result.get("fake_type") in ("none", "unknown", "retouched"):
             result["fake_type"] = "document_or_text_edited"
             result["fake_type_label"] = ea.TYPE_LABELS["document_or_text_edited"]
-        note = f"The {check.get('kind', 'screenshot')} screenshot fails {len(bad)} format check{'s' if len(bad) > 1 else ''}: {bad[0]['detail']}"
+        note = (f"The {check.get('kind', 'screenshot')} screenshot fails {len(bad)} format check{'s' if len(bad) > 1 else ''}: "
+                + " ".join(c["detail"] for c in bad[:3]))
+        if len(bad) >= 2:
+            result["confidence"] = "high"
         result["rule_notes"] = [n for n in result.get("rule_notes", []) if not n.startswith("The payment screenshot")
                                 and not n.startswith("The chat screenshot")] + [note]
     return result

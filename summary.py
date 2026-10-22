@@ -133,6 +133,8 @@ def headline(r: dict) -> str:
         return r.get("verdict_label", "")
     likely = "Likely " if v == "likely_fake" else ""
     t = r.get("fake_type")
+    if t == "edited" and r.get("media_kind") == "audio":
+        return "Likely edited" if likely else "Edited"
     if t == "ai_generated":
         return f"{likely}AI-generated"
     if t == "face_swap_or_deepfake":

@@ -132,6 +132,24 @@ def _store_images(d: Path, images: dict):
         im.convert("RGB").save(folder / f"{k}.jpg", "JPEG", quality=90)
 
 
+SCREENSHOT_KINDS = ("screenshot", "receipt", "payment", "chat")
+
+
+def auto_checks(data: bytes, result: dict) -> dict:
+    """With the AI review on, a payment or chat screenshot gets the screenshot forgery check straight away,
+    so its verdict includes the format checks instead of waiting for a button press."""
+    kind = (result.get("image_kind") or "").lower()
+    if result.get("media_kind", "image") != "image" or not result.get("llm_used") or not any(k in kind for k in SCREENSHOT_KINDS):
+        return result
+    try:
+        check = screenshot_check.run_screenshot_check(data)
+        if check.get("kind") in ("payment", "chat"):
+            return screenshot_check.apply_to_result(result, check)
+    except Exception as e:
+        result["screenshot_check_error"] = f"{type(e).__name__}: {str(e)[:160]}"
+    return result
+
+
 def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
     sha = hashlib.sha256(data).hexdigest()
     cid = case_id(sha)
@@ -141,6 +159,7 @@ def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
     (d / "original.bin").write_bytes(data)
     result = analyse_any(data, safe, use_llm)
     images = result.pop("images")
+    result = auto_checks(data, result)
     gt = SAMPLES / (Path(name).stem + "_gt.png")
     if source == "sample" and gt.exists():
         images["ground_truth"] = Image.open(gt).convert("L")
@@ -350,6 +369,24 @@ async def create_case(request: Request):
     except ValueError as e:
         return err(str(e), 422)
     return ok(_public(result), 201)
+
+
+async def reanalyse_case(request: Request):
+    """Run a case again, e.g. after adding an API key: the old result stays in the custody log."""
+    cid = request.path_params["cid"]
+    try:
+        entry = load_case(cid)
+    except KeyError:
+        return err("No such case.", 404)
+    use_llm = envfile.ai_review_status()[0]
+    meta = entry["result"]["case"]
+    with _lock:
+        _cache.pop(cid, None)
+    try:
+        result = await run_in_threadpool(save_case, entry["data"], meta["name"], use_llm, meta.get("source", "upload"))
+    except ValueError as e:
+        return err(str(e), 422)
+    return ok(_public(result))
 
 
 async def get_case(request: Request):
@@ -725,6 +762,7 @@ routes = [
     Route("/api/cases", create_case, methods=["POST"]),
     Route("/api/cases/{cid}", get_case),
     Route("/api/cases/{cid}", delete_case, methods=["DELETE"]),
+    Route("/api/cases/{cid}/reanalyse", reanalyse_case, methods=["POST"]),
     Route("/api/cases/{cid}/layers", case_layers),
     Route("/api/cases/{cid}/image/{kind}", case_image),
     Route("/api/cases/{cid}/media", case_media),

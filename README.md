@@ -17,7 +17,7 @@ Your browser opens at `http://127.0.0.1:8000`, and the terminal prints whether t
 
 **Keep the AI review on.** Forensic tests only catch edits that leave technical traces. AI-generated images without credentials, deepfake videos and clean edits are usually only visible to the vision model. Without a key, a result with no traces reads "Not enough evidence: AI review was off", never "no evidence".
 
-Press **Play the 90-second demo** on the home screen for a guided tour of six prepared cases (photo edit, AI image, dataset splice, deepfake video, edited voice note, fake receipt).
+Cases analysed before you added the key show a **Re-analyse with AI review** button. Press **Play the 90-second demo** on the home screen for a guided tour of six prepared cases (photo edit, AI image, dataset splice, deepfake video, edited voice note, fake receipt).
 
 Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DETECTOR_MODEL=<huggingface id>` with `transformers` adds a pretrained classifier. The earlier Streamlit interface still works: `streamlit run app.py`. **Editing the interface:** `cd web && npm install && npm run build`. Design notes: [web/DESIGN.md](web/DESIGN.md).
 
@@ -64,8 +64,8 @@ Techniques follow [Sherloq](https://github.com/GuidoBartoli/sherloq), [c2patool]
 | Copy-move | CASIA clone found; no medium/high alarms on real photos or AI faces | Yes |
 | JPEG grid alignment | 0/58 false alarms; ~45% of high-quality crops | Yes |
 | AI tool named in video/audio metadata | Tested with a tagged copy of the demo video | Yes |
-| Digital silence (voice notes) | 0 false alarms on 17 real recordings × 4 formats (WAV, WhatsApp-style Opus, MP3, AAC); 12/12 inserted silences found in WAV, survives MP3/AAC, erased by Opus (0/12) | Possible editing |
-| Screenshot format checks | Deterministic rules (UPI reference length, dates, weekdays, amounts, time order) with unit tests | Yes |
+| Digital silence (voice notes) | 0 false alarms on 17 real recordings × 4 formats (WAV, WhatsApp-style Opus, MP3, AAC); 12/12 inserted silences found in WAV, survives MP3/AAC, erased by Opus (0/12) | Likely edited |
+| Screenshot format checks | Deterministic rules (UPI reference length, dates, weekdays, amounts, time order) with unit tests; run automatically when the AI review sees a payment or chat screenshot; 2 failures → likely manipulated, 3 → manipulated | Yes |
 | Reverse search | Only a perceptual-hash match counts (resized, recompressed copy: distance 0/64; different photo: 29/64) | Context |
 | Face noise/detail vs surroundings | Did **not** separate 91 synthetic face swaps from 8 real and 13 AI portraits | No (experimental) |
 | Face flicker between video frames | Real clips 1.6–3.4×, AI talking heads 1.4–4.3×: no separation | No (experimental) |

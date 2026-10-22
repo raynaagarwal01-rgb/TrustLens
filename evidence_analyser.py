@@ -83,7 +83,7 @@ RESULT_SCHEMA = {
     "manipulation_score": "integer 0-100 (0 = no sign of manipulation, 100 = certainly fake)",
     "fake_type": " | ".join(FAKE_TYPES),
     "confidence": "low | medium | high",
-    "image_kind": "photo of people | photo (no people) | screenshot | document or certificate | artwork | other",
+    "image_kind": "photo of people | photo (no people) | payment screenshot | chat screenshot | other screenshot | document or certificate | artwork | other",
     "visual_findings": [{
         "finding": "short name, e.g. 'warped fingers', 'mismatched shadow', 'font mismatch in date'",
         "location": "where in the image, e.g. 'left hand, bottom-left'",

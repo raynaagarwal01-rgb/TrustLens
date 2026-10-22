@@ -58,7 +58,7 @@ def test_digital_silence_found_in_edited_voice_note_only():
 
 def test_voice_note_verdicts():
     r = audio_analyser.analyse_audio((S / "Voice_note_edited_demo.wav").read_bytes(), "e.wav", use_llm=False)
-    assert r["verdict"] == "inconclusive" and r["audio"]["marks"]
+    assert r["verdict"] == "likely_fake" and r["verdict_label"] == "Likely edited in software" and r["audio"]["marks"]
     r = audio_analyser.analyse_audio((S / "Voice_note_original_demo.wav").read_bytes(), "o.wav", use_llm=False)
     assert r["verdict"] == "no_evidence" and "can't be ruled out" in r["verdict_label"]
     assert summary.headline(r) == "No traces found"
@@ -104,11 +104,13 @@ def test_screenshot_checks():
 
 
 def test_screenshot_contradictions_raise_verdict():
-    r = {"verdict": "no_evidence", "verdict_label": "x", "manipulation_score": 10, "fake_type": "none", "rule_notes": []}
+    r = {"verdict": "no_evidence", "verdict_label": "x", "manipulation_score": 10, "fake_type": "none", "rule_notes": [],
+         "confidence": "low"}
     check = {"kind": "payment", "checks": [{"check": "a", "status": "contradicted", "detail": "d1"},
                                            {"check": "b", "status": "contradicted", "detail": "d2"}]}
     out = sc.apply_to_result(r, check)
-    assert out["manipulation_score"] == 70 and out["fake_type"] == "document_or_text_edited" and out["rule_notes"]
+    assert out["manipulation_score"] == 75 and out["fake_type"] == "document_or_text_edited" and out["rule_notes"]
+    assert out["confidence"] == "high"
 
 
 def test_reverse_search_confirms_only_fingerprint_matches():
@@ -197,6 +199,35 @@ def test_summaries_in_both_languages():
         assert any("ऀ" <= ch <= "ॿ" for ch in "".join(s["hi"]))
     s = summary.build({"verdict": "no_evidence", "llm_used": False, "rule_notes": [], "visual_findings": [], "forensic_signals": []})
     assert "wasn't fully checked" in s["en"][0]
+
+
+
+def test_payment_screenshot_checked_automatically():
+    """With the AI review on, a payment screenshot gets the format checks during analysis (AI replies mocked)."""
+    import datetime as _dt
+    import evidence_analyser as ea
+    import server
+    review = json.dumps({"manipulation_score": 35, "fake_type": "unknown", "confidence": "low", "image_kind": "payment screenshot",
+                         "visual_findings": [], "face_findings": [], "explanation": "A payment receipt.", "limitations": [],
+                         "recommended_actions": [], "heatmap_reading": ""})
+    fields = json.dumps({"kind": "payment", "app": "DemoPay", "status_bar_time": "9:41", "payment": {
+        "amount_texts": ["₹25,000", "₹2,500.00"], "date": "Friday, 22 Oct 2026", "weekday": "Friday", "time": "10:12 AM",
+        "ids": [{"label": "UPI transaction ID", "value": "61234567890"}]}, "visual_anomalies": []})
+
+    class FixedDate(_dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 22)
+    with tempfile.TemporaryDirectory() as d, \
+            mock.patch.object(server, "CASES", Path(d)), \
+            mock.patch.object(ea, "call_llm", lambda *a, **k: review), \
+            mock.patch.object(sc, "call_llm", lambda *a, **k: fields), \
+            mock.patch.object(sc.dt, "date", FixedDate), \
+            mock.patch.object(server.custody, "record", lambda *a, **k: None):
+        r = server.save_case((S / "Screenshot_payment_demo.png").read_bytes(), "receipt.png", True, "upload")
+    assert r["screenshot_check"]["overall"] == "contradicted"
+    assert r["verdict"] == "fake" and r["manipulation_score"] >= 85 and r["confidence"] == "high"
+    assert r["fake_type"] == "document_or_text_edited" and "format check" in r["rule_notes"][-1]
 
 
 if __name__ == "__main__":

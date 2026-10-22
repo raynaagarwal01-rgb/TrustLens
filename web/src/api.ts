@@ -278,6 +278,7 @@ export const api = {
   openSample: (name: string, ai: boolean, reuse = false) =>
     call<CaseResult>(`/api/cases?ai=${ai ? 1 : 0}`, json({ sample: name, reuse })),
   upload: (f: File, ai: boolean) => call<CaseResult>(`/api/cases?ai=${ai ? 1 : 0}`, file(f)),
+  reanalyse: (id: string) => call<CaseResult>(`/api/cases/${id}/reanalyse`, { method: "POST" }),
   remove: (id: string) => call<{ removed: string }>(`/api/cases/${id}`, { method: "DELETE" }),
   layers: (id: string) => call<Layers>(`/api/cases/${id}/layers`),
   histogram: (id: string) => call<Record<"r" | "g" | "b" | "l", number[]>>(`/api/cases/${id}/histogram`),

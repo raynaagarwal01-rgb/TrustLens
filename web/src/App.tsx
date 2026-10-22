@@ -135,6 +135,12 @@ export function App() {
     } catch (e) { fail((e as Error).message); }
   };
 
+  const reanalyse = async () => {
+    if (!result) return;
+    const r0 = result;
+    analyse(() => api.reanalyse(r0.case.id), r0.media_kind === "image" ? api.image(r0.case.id, "original", 1600) : "");
+  };
+
   const remove = async () => {
     if (!result || !confirm(`Remove ${result.case.name} from your cases? The custody log keeps a record that it was removed.`)) return;
     try {
@@ -226,6 +232,11 @@ export function App() {
               </div>
               {result && (
                 <div className="case-head__actions">
+                  {aiOn && !result.llm_used && (
+                    <button className="btn btn--marker" onClick={reanalyse} title="This case was analysed before the AI review was on">
+                      <Icon name="search" /> Re-analyse with AI review
+                    </button>
+                  )}
                   <input ref={compareInput} type="file" accept="image/*" hidden
                          onChange={(e) => { const f = e.target.files?.[0]; if (f) compare(f); e.target.value = ""; }} />
                   {mediaKind === "image" && (
