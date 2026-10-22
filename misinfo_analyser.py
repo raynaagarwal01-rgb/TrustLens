@@ -73,7 +73,8 @@ LANGUAGE_RULES = [
      r"breaking[: !]+.*(confirmed|official))\b"),
     ("Vague or anonymous sourcing", "medium",
      r"\b(sources say|sources said|i heard|someone (from|in) (the )?(office|admin|management)|"
-     r"insider|a friend (in|from)|my (uncle|cousin|senior) (told|said)|reportedly)\b"),
+     r"insider|a friend (in|from)|reportedly|"
+     r"my (uncle|aunt|cousin|senior|friend|roommate|batchmate)\b[^.!?]{0,40}\b(told|said|says))\b"),
     ("Sensational wording", "medium",
      r"\b(shocking|unbelievable|you won'?t believe|exposed|they don'?t want you to know|"
      r"mind[- ]blowing|bombshell|must watch|alert!+)\b"),
@@ -483,13 +484,16 @@ def verify(text: str, url: str | None = None, official_context: list[str] | None
 
 DEMO = {
     "campus_rumour": {
-        "text": ("🚨🚨 BREAKING!!! CAT-2 for all B.Tech students is POSTPONED to next week due to the "
-                 "server issue. My senior told me, 100% confirmed. Forward to all class groups before "
-                 "they delete it!!"),
+        "text": ("🚨🚨 BREAKING!!! All FAT exams are POSTPONED by one week because of the server issue. "
+                 "DBMS FAT is now on 20-Nov. My senior in the exam cell told me, 100% confirmed. "
+                 "Forward to all class groups before they delete it!!"),
+        # same format vtop.official_records() produces from cli-top
         "official_context": [
-            "Announcement (20-Oct-2026): CAT-2 examinations will be conducted as per the published schedule.",
-            "Exam schedule: BACSE202 Database Systems — CAT-2 — 27-Oct-2026, 2:00 PM",
-            "Academic calendar: 27-Oct-2026 to 01-Nov-2026 — Continuous Assessment Test II",
+            "[exams] code: BACSE202; course title: Database Systems; slot: A2+TA2; exam date: 13-Nov-2026; "
+            "exam time: 09:30 AM - 12:30 PM (Report by: 08:45 AM); venue: TBA; days left: 22; section: FAT EXAMS",
+            "[exams] code: BACSE203; course title: Computer Networks; slot: B2+TB2; exam date: 15-Nov-2026; "
+            "exam time: 09:30 AM - 12:30 PM (Report by: 08:45 AM); venue: TBA; days left: 24; section: FAT EXAMS",
+            "[calendar] Academic calendar for semester VL20262701, class group General (Semester)",
         ],
     },
     "health_forward": {

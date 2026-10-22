@@ -1,0 +1,42 @@
+→ EXAMS
+
+
+FAT EXAMS
+
+    INDEX | CODE     | COURSE TITLE                   | SLOT   | EXAM DATE   | EXAM TIME                           | VENUE | SEAT | SEAT NO. | DAYS L
+EFT
+──────────┼──────────┼────────────────────────────────┼────────┼─────────────┼─────────────────────────────────────┼───────┼──────┼──────────┼────────
+___
+
+        1 | BACSE202 | Database Systems               | A2+TA2 | 13-Nov-2026 | 09:30 AM - 12:30 PM (Report by:     | TBA   | TBA  | TBA      | [32m22[0m
+
+          |          |                                |        |             | 08:45 AM)                           |       |      |          | 
+
+        2 | BACSE203 | Computer Networks              | B2+TB2 | 15-Nov-2026 | 09:30 AM - 12:30 PM (Report by:     | TBA   | TBA  | TBA      | [32m24[0m
+
+          |          |                                |        |             | 08:45 AM)                           |       |      |          | 
+
+        3 | BAHUM109 | Principles of Sociology        | C2+TC2 | 19-Nov-2026 | 09:30 AM - 12:30 PM (Report by:     | TBA   | TBA  | TBA      | [32m28[0m
+
+          |          |                                |        |             | 08:45 AM)                           |       |      |          | 
+
+        4 | BASTS101 | Qualitative and Quantitativ... | D2+TD2 | 22-Nov-2026 | 09:30 AM - 10:30 AM (Report by:     | TBA   | TBA  | TBA      | [32m31[0m
+
+          |          |                                |        |             | 09:00 AM)                           |       |      |          | 
+
+        5 | BACSE324 | Embedded Systems Architecture  | E2+TE2 | 24-Nov-2026 | 09:30 AM - 12:30 PM (Report by:     | TBA   | TBA  | TBA      | [32m33[0m
+
+          |          |                                |        |             | 08:45 AM)                           |       |      |          | 
+
+        6 | BAMAT207 | Probability and Statistics     | F2+TF2 | 26-Nov-2026 | 09:30 AM - 12:30 PM (Report by:     | TBA   | TBA  | TBA      | [32m35[0m
+
+          |          |                                |        |             | 08:45 AM)                           |       |      |          | 
+
+
+ICS file generated and saved successfully.
+Import into your calendar using the links below:
+
+Add to Google Calendar
+Add to Outlook Calendar
+
+✓ EXAMS (5.07s)

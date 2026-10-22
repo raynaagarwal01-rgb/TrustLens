@@ -59,15 +59,21 @@ python misinfo_analyser.py   # runs the demo cases
 
 ## VTOP via cli-top
 
-`vtop.py` runs [cli-top](https://cli-top.acmvit.in) locally and parses its tables, joining wrapped cells back together. Attendance maths follows VTOP's rules (percentage rounded up, a lab counts as 2 classes) and matches cli-top's own alerts exactly.
+`vtop.py` runs [cli-top](https://cli-top.acmvit.in) locally and turns its terminal output into data.
 
 ```python
-from vtop import attendance, attendance_summary, what_if, official_records
+from vtop import attendance, attendance_summary, what_if, exams, academic_calendar, official_records
 print(attendance_summary(attendance()))
-records, errors = official_records()   # class messages, exams, calendar, holidays
+records, errors = official_records()   # class messages, exam schedule, academic calendar, holidays
 ```
 
-Set `VTOP_DEMO=1` to read saved snapshots instead of calling VTOP (every live call saves one to `snapshots/`, which is git-ignored). Run tests with `python tests/test_vtop.py`.
+- **Tables**: joins wrapped cells, ignores blank lines from narrow terminals, re-joins split headers ("DAYS L" / "EFT").
+- **Attendance**: VTOP's rules (percentage rounded up, a lab counts as 2 classes); matches cli-top's alerts exactly. `what_if(course, skip=2)` for planning.
+- **Calendar**: the exam/holiday/class information is in the colours, so the parser reads the colour codes and turns the month grids into dated exam and holiday ranges.
+- **Interactive prompts**: answers cli-top's questions itself (latest semester, class group from `VTOP_CLASS_GROUP`, default "General (Semester)"); stops safely on any question it doesn't recognise.
+- **Demo mode**: `VTOP_DEMO=1` replays saved snapshots (written to the git-ignored `snapshots/` on every live call).
+
+Check a saved output: `python vtop.py exams saved_exams.txt`. Run tests: `python tests/test_vtop.py`.
 
 ## Privacy
 

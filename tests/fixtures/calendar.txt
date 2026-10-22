@@ -1,0 +1,51 @@
+→ CALENDAR
+
+
+    INDEX │ SEMESTER ID │ SEMESTER
+    ──────┼─────────────┼──────────────────────────
+        1 │ VL20252601  │ Fall Semester 2025-26 - VLR
+        2 │ VL20252605  │ Winter Semester 2025-26 - VLR
+        3 │ VL20262701  │ Fall Semester 2026-27 - VLR
+
+Choose a semester (enter a number): 2
+
+     Your selected semester: VL20252605 
+
+
+    INDEX │ CLASS GROUP
+    ──────┼──────────────────────────────
+        1 │ All Class Group (Combined)
+        2 │ General (Semester)
+        3 │ General (Flexible)
+
+Choose a class group (enter a number): 2
+
+     Your selected class group: General (Semester) 
+
+[31mRed-Exam Day[0m
+[34mBlue-Holiday[0m
+[32mGreen-Instructional Day[0m
+[33mYellow-Today[0m
+        2025
+
+          DEC
+Su Mo Tu We Th Fr Sa
+   [34m 1[0m [34m 2[0m [34m 3[0m [34m 4[0m [32m 5[0m [32m 6[0m
+[34m 7[0m [32m 8[0m [32m 9[0m [32m10[0m [32m11[0m [32m12[0m [32m13[0m
+[34m14[0m [32m15[0m [32m16[0m [32m17[0m [32m18[0m [32m19[0m [32m20[0m
+[34m21[0m [34m22[0m [34m23[0m [34m24[0m [34m25[0m [34m26[0m [34m27[0m
+[34m28[0m [34m29[0m [34m30[0m [34m31[0m
+
+
+                                    2026
+
+         JAN                      FEB                      MAR                      APR
+Su Mo Tu We Th Fr Sa     Su Mo Tu We Th Fr Sa     Su Mo Tu We Th Fr Sa     Su Mo Tu We Th Fr Sa
+            [34m 1[0m [34m 2[0m [34m 3[0m     [31m 1[0m [31m 2[0m [32m 3[0m [32m 4[0m [32m 5[0m [32m 6[0m [34m 7[0m     [34m 1[0m [34m 2[0m [32m 3[0m [34m 4[0m [32m 5[0m [32m 6[0m [34m 7[0m              [32m 1[0m [32m 2[0m [34m 3[0m [34m 4[0m
+[34m 4[0m [32m 5[0m [32m 6[0m [32m 7[0m [32m 8[0m [32m 9[0m [32m10[0m     [34m 8[0m [32m 9[0m [32m10[0m [32m11[0m [32m12[0m [32m13[0m [32m14[0m     [34m 8[0m [32m 9[0m [32m10[0m [32m11[0m [32m12[0m [32m13[0m [34m14[0m     [34m 5[0m [32m 6[0m [32m 7[0m [32m 8[0m [32m 9[0m [32m10[0m [32m11[0m
+[34m11[0m [32m12[0m [32m13[0m [32m14[0m [32m15[0m [32m16[0m [32m17[0m     [34m15[0m [32m16[0m [32m17[0m [32m18[0m [32m19[0m [32m20[0m [32m21[0m     [31m15[0m [31m16[0m [31m17[0m [31m18[0m [31m19[0m [31m20[0m [34m21[0m     [34m12[0m [34m13[0m [34m14[0m [32m15[0m [32m16[0m [32m17[0m [32m18[0m
+[34m18[0m [32m19[0m [32m20[0m [32m21[0m [32m22[0m [32m23[0m [32m24[0m     [34m22[0m [32m23[0m [32m24[0m [32m25[0m [34m26[0m [34m27[0m [34m28[0m     [31m22[0m [31m23[0m [32m24[0m [32m25[0m [32m26[0m [32m27[0m [32m28[0m     [34m19[0m [34m20[0m [34m21[0m [34m22[0m [34m23[0m [34m24[0m [34m25[0m
+[34m25[0m [34m26[0m [31m27[0m [31m28[0m [31m29[0m [31m30[0m [31m31[0m                              [34m29[0m [32m30[0m [32m31[0m                 [34m26[0m [34m27[0m [34m28[0m [34m29[0m [34m30[0m
+
+
+✓ CALENDAR (42.91s)
