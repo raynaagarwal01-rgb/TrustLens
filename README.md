@@ -9,7 +9,7 @@ Built solo in 24 hours for a hackathon.
 | Module | Status |
 |---|---|
 | Scam message analyser (SMS, WhatsApp, job offers) | ✅ Done |
-| Link / phishing checker | 🔜 In progress |
+| Link / phishing checker | ✅ Done |
 | Image evidence analysis (hash, metadata, error-level analysis) | 🔜 Planned |
 | Learn mode (micro-lessons and quizzes from each detection) | 🔜 Planned |
 
@@ -21,6 +21,23 @@ Built solo in 24 hours for a hackathon.
 4. **Fallback**: if the API is down, a rules-only verdict is returned instead of an error.
 
 The message is treated as untrusted input, so text like "this message is verified safe" is flagged rather than obeyed.
+
+## How the link checker works
+
+Every link found in a message is checked automatically, and its findings feed into the verdict. You can also check a link on its own with `check_url()`.
+
+**Offline checks** (instant, no keys needed): brand impersonation (`sbi-kyc-update.xyz`), look-alike domains (`amaz0n.in`, `g00gle.com`), raw IP addresses, punycode, the `@` trick, risky domain endings, phishing keywords, missing HTTPS and link shorteners.
+
+**Online checks** (optional, each fails gracefully, successful results cached in `.trustlens_cache.json`):
+
+| Check | Needs |
+|---|---|
+| Domain age via RDAP | nothing |
+| Short-link expansion | nothing |
+| Google Safe Browsing | `GSB_API_KEY` |
+| VirusTotal | `VT_API_KEY` |
+
+Run the demo links with `python link_checker.py`, or `TRUSTLENS_OFFLINE=1 python link_checker.py` for offline only.
 
 ## Setup
 
@@ -36,6 +53,10 @@ export GROQ_API_KEY=your_key
 export LLM_MODEL=model_name
 
 python scam_analyser.py   # runs the built-in demo messages
+
+# optional, for the link checker
+export GSB_API_KEY=your_key
+export VT_API_KEY=your_key
 ```
 
 Use it in code:

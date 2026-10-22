@@ -16,6 +16,11 @@ import json
 import os
 import re
 
+try:
+    from link_checker import check_urls
+except ImportError:  # analyser still works on its own
+    check_urls = None
+
 # ---------------------------------------------------------------------------
 # 1. JSON SCHEMA — the contract between the LLM and your UI
 # ---------------------------------------------------------------------------
@@ -141,6 +146,7 @@ HARD_FLOOR_FLAGS = {  # if any of these fire, final score can't go below the flo
     "Asks for a fee or deposit": 65,
     "Remote-access app mentioned": 75,
     "UPI ID with payment request": 65,
+    "Malicious link": 70,
 }
 
 
@@ -270,15 +276,33 @@ def rules_only_result(message: str, signals: list[dict]) -> dict:
     return combine(result, signals)
 
 
-def analyse(message: str) -> dict:
+def link_signals(links: list[dict]) -> list[dict]:
+    """Turn link-checker reports into signals the LLM and scoring can use."""
+    signals = []
+    for link in links:
+        if link["verdict"] == "likely_safe" or not link["findings"]:
+            continue
+        top = link["findings"][0]
+        signals.append({
+            "flag": "Malicious link" if link["verdict"] == "malicious" else "Suspicious link",
+            "evidence": f"{link['domain']} — {top['check']}: {top['detail']}",
+            "severity": "high" if link["verdict"] == "malicious" else "medium",
+        })
+    return signals
+
+
+def analyse(message: str, online: bool = True) -> dict:
     signals = rule_scan(message)
+    links = check_urls(extract_urls(message), online=online) if check_urls else []
+    signals += link_signals(links)
     try:
         raw = call_llm(SYSTEM_PROMPT, build_user_prompt(message, signals))
-        return combine(validate(raw, message), signals)
+        result = combine(validate(raw, message), signals)
     except Exception as e:  # network, quota, bad JSON — never crash the demo
         result = rules_only_result(message, signals)
         result["error"] = f"{type(e).__name__}: {e}"
-        return result
+    result["links"] = links
+    return result
 
 
 # ---------------------------------------------------------------------------
