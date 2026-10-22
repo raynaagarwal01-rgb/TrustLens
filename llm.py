@@ -13,11 +13,73 @@ import re
 import envfile  # noqa: F401  (loads .env so the key survives new terminals)
 
 
+_one_image_only = os.getenv("LLM_MAX_IMAGES", "") == "1"
+
+
+def combine_images(images: list[tuple[bytes, str]]) -> tuple[bytes, str]:
+    """Several images as one labelled picture (IMAGE 1, IMAGE 2, ...), for models that accept one image."""
+    import io
+    from PIL import Image, ImageDraw, ImageFont
+    ims = [Image.open(io.BytesIO(b)).convert("RGB") for b, _ in images]
+    cell = 768
+    for im in ims:
+        im.thumbnail((cell, cell))
+    cols = 1 if len(ims) == 1 else 2
+    rows = (len(ims) + cols - 1) // cols
+    row_h = [max(im.height for im in ims[r * cols:(r + 1) * cols]) + 34 for r in range(rows)]
+    sheet = Image.new("RGB", (cell * cols, sum(row_h)), (255, 255, 255))
+    d = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 22)
+    except OSError:
+        try:
+            font = ImageFont.truetype("arialbd.ttf", 22)
+        except OSError:
+            font = ImageFont.load_default()
+    y = 0
+    for r in range(rows):
+        for c, im in enumerate(ims[r * cols:(r + 1) * cols]):
+            i = r * cols + c
+            d.text((c * cell + 6, y + 4), f"IMAGE {i + 1}", fill=(0, 0, 0), font=font)
+            sheet.paste(im, (c * cell, y + 30))
+        y += row_h[r]
+    buf = io.BytesIO()
+    sheet.save(buf, "JPEG", quality=88)
+    return buf.getvalue(), "image/jpeg"
+
+
+def _too_many_images(e: Exception) -> bool:
+    m = str(e).lower()
+    return "image" in m and any(w in m for w in ("too many", "at most", "maximum", "only one", "only 1", "max"))
+
+
 def call_llm(system: str, user: str, temperature: float = 0.2,
              images: list[tuple[bytes, str]] | None = None) -> str:
-    """images: optional list of (bytes, mime_type), sent before the text."""
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    """images: optional list of (bytes, mime_type), sent before the text. If the model accepts fewer images
+    than given, they are combined into one labelled picture and the call is retried (remembered afterwards)."""
+    global _one_image_only
     images = images or []
+    pictures = [i for i in images if i[1].startswith("image/")]
+    if _one_image_only and len(pictures) > 1:
+        return _call(system, _combined_note(user, len(pictures)), temperature, [combine_images(pictures)] +
+                     [i for i in images if not i[1].startswith("image/")])
+    try:
+        return _call(system, user, temperature, images)
+    except Exception as e:
+        if len(pictures) > 1 and _too_many_images(e):
+            _one_image_only = True
+            return _call(system, _combined_note(user, len(pictures)), temperature, [combine_images(pictures)] +
+                         [i for i in images if not i[1].startswith("image/")])
+        raise
+
+
+def _combined_note(user: str, n: int) -> str:
+    return (f"NOTE: the {n} images were combined into one picture; each panel is labelled IMAGE 1 to IMAGE {n} "
+            f"in the order described above.\n\n{user}")
+
+
+def _call(system: str, user: str, temperature: float, images: list[tuple[bytes, str]]) -> str:
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
 
     if provider == "gemini":
         from google import genai  # pip install google-genai
