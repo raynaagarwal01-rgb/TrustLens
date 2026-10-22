@@ -16,27 +16,85 @@ import envfile  # noqa: F401  (loads .env so the key survives new terminals)
 _LIMITS = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".trustlens_models.json")
 
 
-def _model_key() -> str:
-    return f"{os.getenv('LLM_PROVIDER', 'gemini').lower()}:{os.getenv('LLM_MODEL', '')}"
+def _model_key(provider: str | None = None, model: str | None = None) -> str:
+    if provider is None:
+        provider, model = os.getenv("LLM_PROVIDER", "gemini").lower(), os.getenv("LLM_MODEL", "")
+    return f"{provider}:{model or ''}"
 
 
-def _remembered_one_image() -> bool:
+def _remembered_one_image(key: str | None = None) -> bool:
     try:
-        return bool(json.load(open(_LIMITS)).get(_model_key(), {}).get("one_image"))
+        return bool(json.load(open(_LIMITS)).get(key or _model_key(), {}).get("one_image"))
     except Exception:
         return False
 
 
-def _remember_one_image():
+def _remember_one_image(key: str | None = None):
     try:
         data = json.load(open(_LIMITS)) if os.path.exists(_LIMITS) else {}
-        data[_model_key()] = {"one_image": True}
+        data[key or _model_key()] = {"one_image": True}
         json.dump(data, open(_LIMITS, "w"))
     except Exception:
         pass
 
 
-_one_image_only = os.getenv("LLM_MAX_IMAGES", "") == "1" or _remembered_one_image()
+_one_image: dict[str, bool] = {}
+
+
+def _is_one_image(key: str) -> bool:
+    if key not in _one_image:
+        _one_image[key] = os.getenv("LLM_MAX_IMAGES", "") == "1" or _remembered_one_image(key)
+    return _one_image[key]
+
+# ---------------------------------------------------------------------------
+# Fallbacks: free tiers have per-minute and per-day limits per model. When the chosen model is
+# rate-limited or down, try the next one instead of dropping the AI review.
+# ---------------------------------------------------------------------------
+
+# Groq's vision models (console.groq.com/docs/vision, Oct 2026): qwen/qwen3.8-27b, and muse-spark-open in limited
+# preview (skipped automatically without access). The dependable backup is a Gemini key in .env.
+GROQ_VISION_FALLBACKS = ("meta-models/muse-spark-open",)
+_resting: dict[str, float] = {}   # model key -> time it may be tried again
+last_model = ""                   # which model answered the most recent call (shown in the terminal)
+
+
+def _candidates() -> list[tuple[str, str]]:
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    out = [(provider, os.getenv("LLM_MODEL", "gemini-3.8-flash" if provider == "gemini" else ""))]
+    if os.getenv("GROQ_API_KEY"):
+        extra = [m.strip() for m in os.getenv("LLM_FALLBACK_MODELS", ",".join(GROQ_VISION_FALLBACKS)).split(",") if m.strip()]
+        out += [("groq", m) for m in extra]
+    if os.getenv("GEMINI_API_KEY"):
+        # current models first; 2.5 Flash still works for keys that used it before (ai.google.dev/gemini-api/docs/models)
+        out += [("gemini", os.getenv("GEMINI_MODEL", "gemini-3.8-flash")), ("gemini", "gemini-3.5-flash-lite"),
+                ("gemini", "gemini-2.5-flash")]
+    seen, uniq = set(), []
+    for c in out:
+        if c[1] and c not in seen:
+            seen.add(c)
+            uniq.append(c)
+    return uniq
+
+
+def _wait_seconds(e: Exception) -> float | None:
+    """Groq says 'Please try again in 7.5s' or '1m2.5s' or '2h3m'. Returns seconds, or None."""
+    m = re.search(r"try again in ((?:\d+h)?(?:\d+m(?!s))?(?:[\d.]+s)?)", str(e))
+    if not m or not m.group(1):
+        return None
+    t = 0.0
+    for num, unit in re.findall(r"([\d.]+)([hms])", m.group(1)):
+        t += float(num) * {"h": 3600, "m": 60, "s": 1}[unit]
+    return t
+
+
+def _switchable(e: Exception) -> bool:
+    """Rate limits, overload, a model that doesn't exist (any more) or can't see images: try the next model."""
+    m = str(e).lower()
+    name = type(e).__name__.lower()
+    return any(w in name for w in ("ratelimit", "notfound", "internalserver", "serviceunavailable", "apiconnection", "timeout")) or \
+        any(w in m for w in ("429", "rate limit", "resource_exhausted", "quota", "503", "502", "overloaded", "unavailable",
+                             "model_not_found", "does not exist", "403", "permission", "access", "decommissioned", "not found", "does not support image",
+                             "vision", "image input"))
 
 
 def combine_images(images: list[tuple[bytes, str]]) -> tuple[bytes, str]:
@@ -82,22 +140,50 @@ def _too_many_images(e: Exception) -> bool:
 def call_llm(system: str, user: str, temperature: float = 0.2,
              images: list[tuple[bytes, str]] | None = None) -> str:
     """images: optional list of (bytes, mime_type), sent before the text. If the model accepts fewer images
-    than given, they are combined into one labelled picture and the call is retried (remembered afterwards)."""
-    global _one_image_only
+    than given, they are combined into one labelled picture and the call is retried (remembered afterwards).
+    If the model is rate-limited or unavailable, a short wait is taken once, then the next model is tried."""
+    import time
+    global last_model
     images = images or []
     pictures = [i for i in images if i[1].startswith("image/")]
-    if _one_image_only and len(pictures) > 1:
-        return _call(system, _combined_note(user, len(pictures)), temperature, [combine_images(pictures)] +
-                     [i for i in images if not i[1].startswith("image/")])
-    try:
-        return _call(system, user, temperature, images)
-    except Exception as e:
-        if len(pictures) > 1 and _too_many_images(e):
-            _one_image_only = True
-            _remember_one_image()
-            return _call(system, _combined_note(user, len(pictures)), temperature, [combine_images(pictures)] +
-                         [i for i in images if not i[1].startswith("image/")])
-        raise
+    others = [i for i in images if not i[1].startswith("image/")]
+    errors = []
+    for provider, model in _candidates():
+        key = _model_key(provider, model)
+        if _resting.get(key, 0) > time.time():
+            continue
+        for attempt in range(2):
+            try:
+                if _is_one_image(key) and len(pictures) > 1:
+                    out = _call(system, _combined_note(user, len(pictures)), temperature,
+                                [combine_images(pictures)] + others, provider, model)
+                else:
+                    try:
+                        out = _call(system, user, temperature, images, provider, model)
+                    except Exception as e:
+                        if len(pictures) > 1 and _too_many_images(e):
+                            _one_image[key] = True
+                            _remember_one_image(key)
+                            out = _call(system, _combined_note(user, len(pictures)), temperature,
+                                        [combine_images(pictures)] + others, provider, model)
+                        else:
+                            raise
+                if last_model and last_model != key:
+                    print(f"AI review: answered by {model}", flush=True)
+                last_model = key
+                return out
+            except Exception as e:
+                if not _switchable(e):
+                    raise
+                wait = _wait_seconds(e)
+                if attempt == 0 and wait is not None and wait <= 25:
+                    time.sleep(wait + 0.5)       # a per-minute limit about to reset: wait once
+                    continue
+                _resting[key] = time.time() + (wait if wait else 60)
+                errors.append(f"{model}: {str(e)[:140]}")
+                print(f"AI review: {model} unavailable ({type(e).__name__}), trying the next model", flush=True)
+                break
+    raise RuntimeError("Every AI model is rate-limited or unavailable right now. " + " | ".join(errors[-3:]))
 
 
 def _combined_note(user: str, n: int) -> str:
@@ -105,8 +191,10 @@ def _combined_note(user: str, n: int) -> str:
             f"in the order described above.\n\n{user}")
 
 
-def _call(system: str, user: str, temperature: float, images: list[tuple[bytes, str]]) -> str:
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+def _call(system: str, user: str, temperature: float, images: list[tuple[bytes, str]],
+          provider: str | None = None, model: str | None = None) -> str:
+    provider = provider or os.getenv("LLM_PROVIDER", "gemini").lower()
+    model = model or os.getenv("LLM_MODEL", "gemini-3.8-flash" if provider == "gemini" else "")
 
     if provider == "gemini":
         from google import genai  # pip install google-genai
@@ -114,7 +202,7 @@ def _call(system: str, user: str, temperature: float, images: list[tuple[bytes, 
         client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
         parts = [types.Part.from_bytes(data=b, mime_type=m) for b, m in images] + [user]
         resp = client.models.generate_content(
-            model=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+            model=model,
             contents=parts,
             config=types.GenerateContentConfig(
                 system_instruction=system,
@@ -134,7 +222,7 @@ def _call(system: str, user: str, temperature: float, images: list[tuple[bytes, 
         else:
             content = user
         resp = client.chat.completions.create(
-            model=os.environ["LLM_MODEL"],
+            model=model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": content}],
             response_format={"type": "json_object"},
             temperature=temperature,

@@ -99,7 +99,7 @@ def search_gemini(desc: dict) -> list[dict]:
     from google.genai import types
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     resp = client.models.generate_content(
-        model=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+        model=os.getenv("LLM_MODEL", "gemini-3.8-flash"),
         contents=[SEARCH_PROMPT.format(desc=desc["description"], queries="; ".join(desc["queries"]))],
         config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())], temperature=0.2))
     found = _parse_lines(resp.text or "")

@@ -86,7 +86,7 @@ function SwapPanel({ r }: { r: CaseResult }) {
           <h3>Face-swap detector</h3>
           <p className="muted">EfficientNet-B7 that won Facebook's Deepfake Detection Challenge (1st of 2,265 teams), run on {video ? `${fs.n} frames with a face` : "the face"} in {fs.seconds}s.</p>
         </div>
-        <p className="swap__score"><b>{Math.min(99, Math.round(score * 100))}%</b><span>{tone === "bad" ? "swapped face" : tone === "warn" ? "possible swap" : "no swap found"}</span></p>
+        <p className="swap__score"><b>{Math.min(99, Math.round(score * 100))}%</b><span>{tone === "bad" ? "swapped face" : tone === "warn" ? "possible swap" : score >= 0.2 ? "below the line: not flagged" : "no swap found"}</span></p>
       </div>
       {video && fs.frames && fs.frames.length > 1 && (
         <div className="swap__bars" role="img" aria-label={`Per-frame fake probability: ${fs.frames.map((f) => `${f.label} ${Math.round(f.p * 100)}%`).join(", ")}`}>

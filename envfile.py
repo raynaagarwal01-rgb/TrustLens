@@ -46,7 +46,9 @@ def ai_review_status() -> tuple[bool, str]:
         return False, f"AI review: OFF (no {key_name}). Put it in {ENV_PATH.name} to turn it on."
     if provider == "groq" and not os.getenv("LLM_MODEL"):
         return False, "AI review: OFF (LLM_PROVIDER=groq needs LLM_MODEL, e.g. qwen/qwen3.8-27b)."
-    return True, f"AI review: ON ({provider}, {os.getenv('LLM_MODEL') or 'gemini-2.5-flash'})"
+    backup = " + Gemini backup" if provider != "gemini" and os.getenv("GEMINI_API_KEY") else \
+        " (no backup: add GEMINI_API_KEY to .env so a rate limit doesn't switch the AI review off)" if provider != "gemini" else ""
+    return True, f"AI review: ON ({provider}, {os.getenv('LLM_MODEL') or 'gemini-3.8-flash'}){backup}"
 
 
 load()
