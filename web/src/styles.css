@@ -631,3 +631,15 @@ p { margin: 0 0 0.6em; max-width: 72ch; }
 .check__why ul { margin: 0.4rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; font-size: var(--s-13); }
 .check__actions { display: grid; gap: 0.5rem; }
 .check__actions .btn { justify-content: center; padding: 0.8rem; font-size: var(--s-15); }
+.check__list { display: grid; gap: 0.5rem; }
+.check__progress { display: grid; gap: 0.4rem; font-size: var(--s-13); color: var(--graphite); }
+.check__row {
+  display: grid; grid-template-columns: 3rem 1fr auto; gap: 0.7rem; align-items: center; text-align: left;
+  padding: 0.55rem; background: var(--sheet); border: 1px solid var(--rule-soft); border-radius: var(--radius-s); cursor: pointer;
+}
+.check__row:disabled { cursor: default; }
+.check__row[aria-expanded="true"] { border-color: var(--ink); box-shadow: inset 4px 0 0 var(--marker); }
+.check__row img, .check__row .batch__wait { width: 3rem; height: 3rem; object-fit: cover; border-radius: var(--radius-s); }
+.check__row-text { display: grid; gap: 0.25rem; justify-items: start; min-width: 0; }
+.check__row-text b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--s-13); }
+.check__row-score { font-weight: 700; font-variant-numeric: tabular-nums; }
