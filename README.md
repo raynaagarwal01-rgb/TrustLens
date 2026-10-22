@@ -36,6 +36,16 @@ Forged circulars and WhatsApp forwards ("DBMS FAT postponed to 20-Nov!") are dig
 
 It uses the latest saved cli-top snapshot by default (fast, works offline) or fetches live on request. Tested live on a real VTOP account: exam schedule and current-semester calendar parsed correctly.
 
+## Event / hackathon check: is it real?
+
+Students lose money to fake hackathons, workshops and internships that collect a "registration fee". For a poster or forward, TrustLens:
+
+1. reads the event name, organiser, dates, fee, UPI IDs, links and contacts with the vision LLM,
+2. checks whether the event **actually exists**: in **VTOP club events via cli-top** (`cli-top events`) and on the web (Groq browser search with `openai/gpt-oss-120b`, Bing fallback) for an official site or listing on Devfolio, Unstop, MLH, Devpost and similar,
+3. flags scam signs: fee paid to a UPI ID, paid "hackathons", urgency ("last date today, 50 seats left"), personal Gmail for an organisation, look-alike or brand-new registration domains (reuses `scam_analyser.py` and `link_checker.py`),
+4. catches **impersonation**: a real event copied onto a poster whose registration or payment link isn't the official one, or that charges a fee when the official event is free,
+5. gives **Event verified / Unverified / Likely scam** with reasons and sources. "Not found online" is reported as unverified, never as proof of a scam.
+
 ## Measured on real data (`python tests/test_evidence.py`)
 
 | Test set | Result |
@@ -90,6 +100,7 @@ TrustLens includes a curated dataset of photorealistic AI-generated faces and mo
 | `report.py` | Self-contained HTML evidence report (print to PDF) and JSON export |
 | `app.py` | Streamlit interface |
 | `campus_check.py` | Notice claims vs official VTOP records (cli-top) |
+| `event_check.py` | Event/hackathon existence (VTOP events + web) and registration scam checks |
 | `vtop.py` | cli-top wrapper: runs commands, answers prompts, parses tables and the colour-coded calendar |
 | `llm.py` | Gemini / Groq calls, with image support |
 | `samples/` | Demo images with sources and ground truth ([details](samples/README.md)) |
@@ -98,7 +109,7 @@ TrustLens includes a curated dataset of photorealistic AI-generated faces and mo
 | `face_analyser.py` | Experimental standalone face analyser (metadata, ELA, FFT). **Not calibrated yet:** its fixed thresholds currently label real web photos as AI-generated too, so it isn't used by the app |
 | `train_face_detector.py` | Training pipeline scaffold (baseline + PyTorch). Needs a large dataset: the small baseline in `models/` (16–26 images) is not a meaningful result |
 
-Earlier prototypes from other tracks (`scam_analyser.py`, `link_checker.py`, `misinfo_analyser.py`) remain in the repo but aren't part of the Track 1 app.
+`scam_analyser.py` and `link_checker.py` (from an earlier prototype) are reused by the event check; `misinfo_analyser.py` isn't part of the Track 1 app.
 
 ## Limitations
 

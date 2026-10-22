@@ -17,6 +17,13 @@ if cmd == "calendar":
     print(mid.replace("VL20252605", "VL20262701") + "Choose a class group (enter a number): ", end="", flush=True)
     grp = input()
     print(tail.replace("General (Semester)", "General (Semester)" if grp == "2" else "?"), end="")
+elif cmd == "events":
+    print("→ EVENTS\n\n  INDEX │ EVENT NAME                 │ CLUB                 │ DATE        │ STATUS\n"
+          "  ──────┼────────────────────────────┼──────────────────────┼─────────────┼────────\n"
+          "      1 │ DevSprint 2026 Hackathon   │ Developers Club      │ 08-Nov-2026 │ Open\n"
+          "      2 │ Robotics Expo              │ Robotics Club        │ 12-Nov-2026 │ Closed\n")
+    print("Choose an event to register (enter a number, 0 to exit): ", end="", flush=True)
+    input()
 elif cmd == "leave":
     print("Apply for leave? (y/n): ", end="", flush=True)
     input()

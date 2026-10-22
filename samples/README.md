@@ -8,6 +8,7 @@
 | `AI_face_01.jpg` … `AI_face_08.jpg`, `AI_student_01.jpg` … `AI_student_05.jpg` | AI-generated portraits, incl. Indian students on campus (copies of `data/fake/`) | Google generative AI: each file carries Content Credentials signed by Google LLC ("Created by Google Generative AI", SynthID watermark) |
 | `Forged_notice_demo.jpg` | Demo exam notice whose FAT date was pasted over (13-Nov → 20-Nov) from another image; labelled as a demo on the page | Made for TrustLens testing (no real institution named) |
 | `Notice_original_demo.jpg` | The same notice before the edit, matching the official date | same |
+| `Event_fake_hackathon_demo.jpg` | Demo scam poster: unknown "national hackathon", ₹499 fee to a UPI ID, WhatsApp payment proof, .xyz registration link, "last date today" | Made for TrustLens testing; fictional event, labelled as a demo |
 | `vtop_demo/exams.txt` | cli-top exam-schedule output used when no live VTOP snapshot exists | cli-top |
 | `Au_jolla_phone_photo.jpg` | Authentic, unedited phone photo | [ianare/exif-samples](https://github.com/ianare/exif-samples) (`jpg/mobile/jolla.jpg`) |
 

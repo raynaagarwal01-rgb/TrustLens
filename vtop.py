@@ -52,7 +52,11 @@ COMMANDS = {
     "today": ["today"],
     "tomorrow": ["tomorrow"],
     "dayafter": ["dayafter"],
+    "events": ["events"],
 }
+# commands that list things and then offer an interactive action (e.g. "register for an event"):
+# keep the list, stop at the question instead of failing
+LIST_THEN_PROMPT = {"events"}
 
 # Sources used to verify campus rumours (cli-top has no separate announcements command)
 OFFICIAL_SOURCES = ["class_messages", "exams", "calendar", "holiday"]
@@ -103,7 +107,7 @@ def choose_answer(output_so_far: str) -> str | None:
     return None  # unknown prompt: don't guess
 
 
-def _run_live(args: list[str]) -> str:
+def _run_live(args: list[str], stop_on_prompt: bool = False) -> str:
     try:
         proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT,
@@ -132,6 +136,8 @@ def _run_live(args: list[str]) -> str:
             # waiting on a question we don't recognise (e.g. "y/n?"): stop instead of hanging
             if time.time() - last_data > IDLE_PROMPT_SECONDS and re.search(r"[?:]\s*$", tail):
                 proc.kill()
+                if stop_on_prompt:
+                    return buf.decode("utf-8", "replace")
                 last = tail.strip().splitlines()[-1] if tail.strip() else ""
                 raise VtopError(f"cli-top is waiting for input I can't answer safely: {last!r}")
             if time.time() > deadline:
@@ -147,6 +153,8 @@ def _run_live(args: list[str]) -> str:
             answer = choose_answer(buf.decode("utf-8", "replace"))
             if answer is None:
                 proc.kill()
+                if stop_on_prompt:
+                    return buf.decode("utf-8", "replace")
                 last = tail.strip().splitlines()[-1]
                 raise VtopError(f"cli-top asked a question I can't answer safely: {last!r}. "
                                 "Set VTOP_SEMESTER_ID / VTOP_CLASS_GROUP.")
@@ -168,7 +176,8 @@ def run_raw(source: str, extra_args: list[str] | None = None) -> str:
         if not snap.exists():
             raise VtopError(f"Demo mode: no snapshot at {snap}. Run once without VTOP_DEMO to create it.")
         return snap.read_text(encoding="utf-8")
-    out = _run_live(_binary() + COMMANDS.get(source, [source]) + (extra_args or []))
+    out = _run_live(_binary() + COMMANDS.get(source, [source]) + (extra_args or []),
+                    stop_on_prompt=source in LIST_THEN_PROMPT)
     SNAPSHOT_DIR.mkdir(exist_ok=True)
     snap.write_text(out, encoding="utf-8")
     return out

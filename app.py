@@ -14,6 +14,7 @@ import streamlit as st
 from PIL import Image
 
 import campus_check
+import event_check
 import evidence_analyser as ea
 from report import build_report_html, result_to_json
 
@@ -52,7 +53,8 @@ with st.sidebar:
     for p in sample_files:
         tag = ("Tampered (CASIA)" if p.name.startswith("Tp_") else "Authentic" if p.name.startswith("Au_")
                else "AI-generated" if p.name.startswith("AI_") else "Forged notice (demo)" if p.name.startswith("Forged_")
-               else "Notice (demo)" if p.name.startswith("Notice_") else "Sample")
+               else "Notice (demo)" if p.name.startswith("Notice_")
+               else "Event poster (demo)" if p.name.startswith("Event_") else "Sample")
         labels[f"{tag} · {p.name[:28]}"] = p
     choice = st.selectbox("Pick a sample", list(labels))
 
@@ -167,6 +169,48 @@ else:
             with st.expander("VTOP fetch problems"):
                 for k, v in oc["vtop_errors"].items():
                     st.write(f"{k}: {v}")
+
+# ---------------------------------------------------------------------------
+# Event / hackathon check: does it exist, and is the registration safe?
+# ---------------------------------------------------------------------------
+
+st.subheader("🎟️ Event / hackathon check: is it real?")
+st.caption("For posters and forwards promoting hackathons, workshops, fests or internships. TrustLens reads the "
+           "details, looks for the event in VTOP club events (cli-top) and on the web, and checks the payment "
+           "and registration links.")
+if not r["llm_used"]:
+    st.info("Turn on AI visual analysis (needs an API key) so TrustLens can read the poster.")
+else:
+    live_ev = st.checkbox("Fetch VTOP club events live now (slower)", value=False, key="live_events",
+                          help="Off: uses the snapshot saved by your last `python vtop.py events` run.")
+    if st.button("Check this event"):
+        with st.spinner("Reading the poster, searching for the official event and checking links..."):
+            try:
+                r["event_check"] = event_check.run_event_check(data, live_vtop=live_ev)
+                st.session_state["result"] = r
+            except Exception as e:
+                st.error(f"Event check failed: {type(e).__name__}: {str(e)[:200]}")
+    ec = r.get("event_check")
+    if ec:
+        box = {"likely_scam": st.error, "verified": st.success}.get(ec["verdict"], st.warning)
+        box(f"**{ec['verdict_label']}** · {ec['summary']}")
+        ev = ec["event"]
+        st.markdown(f"**{ev['event_name'] or 'Unnamed event'}** · {ev['organizer'] or 'organiser not stated'}"
+                    + (f" · {ev['dates']}" if ev["dates"] else "") + (f" · fee: {ev['fee']}" if ev["fee"] else ""))
+        for reason in ec["reasons"]:
+            st.markdown(f"- {reason}")
+        for f in ec["red_flags"]:
+            st.markdown(f"{SEV_ICON[f['severity']]} **{f['flag']}**  \n{f['detail']}")
+        web = ec["web"]
+        if web.get("status") == "ok":
+            st.caption(f"Checked via {web.get('method', 'web search')}" + (f": {web['summary']}" if web.get("summary") else ""))
+            for u in web.get("official_urls", []):
+                st.markdown(f"- [{u}]({u})")
+        elif web.get("detail"):
+            st.caption(f"Web check unavailable: {web['detail'][:200]}")
+        v = ec["vtop"]
+        st.caption("VTOP club events: " + (f"{v['events_listed']} events checked ({v['source']})" if v.get("status") == "ok"
+                                             else v.get("detail", "not checked")))
 
 t1, t2, t3, t4 = st.tabs(["Visual findings", "Forensic tests", "Metadata", "Evidence integrity"])
 with t1:

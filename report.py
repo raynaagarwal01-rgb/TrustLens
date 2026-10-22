@@ -44,6 +44,22 @@ def _official_section(r: dict) -> str:
             f"<p class='muted'>Data source: {_e(src)}</p>")
 
 
+def _event_section(r: dict) -> str:
+    ec = r.get("event_check")
+    if not ec:
+        return ""
+    ev = ec["event"]
+    flags = "".join(f"<tr><td><span class='sev' style='background:{SEV_COLOUR[f['severity']]}'>{_e(f['severity'])}</span></td>"
+                    f"<td><b>{_e(f['flag'])}</b></td><td>{_e(f['detail'])}</td></tr>" for f in ec["red_flags"]) or \
+        "<tr><td colspan=3 class='muted'>No red flags.</td></tr>"
+    reasons = "".join(f"<li>{_e(x)}</li>" for x in ec["reasons"])
+    urls = "".join(f"<li>{_e(u)}</li>" for u in ec["web"].get("official_urls", []))
+    return (f"<h2>Event / hackathon check</h2><p><b>{_e(ec['verdict_label'])}</b> (risk {ec['risk_score']}/100): {_e(ec['summary'])}</p>"
+            f"<p>{_e(ev['event_name'])} · {_e(ev['organizer'])} · {_e(ev['dates'])} · fee: {_e(ev['fee'] or 'none stated')}</p>"
+            f"<ul>{reasons}</ul><table><tr><th>Severity</th><th>Red flag</th><th>Detail</th></tr>{flags}</table>"
+            + (f"<p>Official sources found:</p><ul>{urls}</ul>" if urls else ""))
+
+
 def build_report_html(r: dict) -> str:
     i = r["integrity"]
     colour = VERDICT_COLOUR.get(r["verdict"], "#555")
@@ -117,6 +133,7 @@ SHA-256 hash (e.g. <code>certutil -hashfile file SHA256</code> on Windows, <code
 </div>
 
 {_official_section(r)}
+{_event_section(r)}
 <h2>4. Metadata</h2>
 <table>{exif_rows}{text_rows}</table>
 <p class="muted">XMP present: {r['metadata']['xmp_present']} · Content Credentials (C2PA) present: {r['metadata']['c2pa_present']}</p>
