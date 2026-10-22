@@ -1,0 +1,133 @@
+{
+  "dataset_name": "TrustLens-SyntheticFaces-v1",
+  "purpose": "Training and evaluating synthetic / deepfake face detection models for TrustLens digital safety copilot",
+  "num_samples": 8,
+  "format": "JPEG",
+  "resolution": "1024x1024",
+  "color_space": "RGB",
+  "label": "fake",
+  "label_id": 1,
+  "samples": [
+    {
+      "filename": "face_01.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "young_adult (20-25)",
+        "ethnicity": "caucasian / ambiguous"
+      },
+      "style": "studio_headshot",
+      "lighting": "diffused studio softbox",
+      "expression": "neutral",
+      "synthetic_indicators": [
+        "high skin texture uniformity",
+        "symmetrical catchlight reflections",
+        "smooth synthetic background falloff"
+      ]
+    },
+    {
+      "filename": "face_02.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "young_adult (20-25)",
+        "ethnicity": "south_asian"
+      },
+      "style": "corporate_headshot",
+      "lighting": "three-point studio",
+      "expression": "neutral confident",
+      "synthetic_indicators": [
+        "fine high-frequency hairline boundary",
+        "clean studio bokeh"
+      ]
+    },
+    {
+      "filename": "face_03.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "young_adult (25-30)",
+        "ethnicity": "black / african_descent"
+      },
+      "style": "commercial_portrait",
+      "lighting": "three-point studio with subtle rim",
+      "expression": "calm direct eye contact",
+      "synthetic_indicators": [
+        "synthetic iris fiber geometry",
+        "crisp boundary separation from gradient background"
+      ]
+    },
+    {
+      "filename": "face_04.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "adult (30-35)",
+        "ethnicity": "hispanic / latino"
+      },
+      "style": "studio_headshot",
+      "lighting": "rim light with warm fill",
+      "expression": "neutral",
+      "synthetic_indicators": [
+        "subtle micro-contrast artifacts in peripheral hair",
+        "digital frequency distribution"
+      ]
+    },
+    {
+      "filename": "face_05.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "senior (65-70)",
+        "ethnicity": "caucasian"
+      },
+      "style": "distinguished_portrait",
+      "lighting": "soft diffuse portrait lighting",
+      "expression": "gentle neutral",
+      "synthetic_indicators": [
+        "wrinkle mapping continuity",
+        "synthetic ocular reflections"
+      ]
+    },
+    {
+      "filename": "face_06.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "young_adult (25-30)",
+        "ethnicity": "east_asian"
+      },
+      "style": "corporate_headshot",
+      "lighting": "balanced softbox studio",
+      "expression": "soft neutral",
+      "synthetic_indicators": [
+        "flawless skin tone gradients",
+        "subtle depth plane smoothing"
+      ]
+    },
+    {
+      "filename": "face_07.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "adult (30-35)",
+        "ethnicity": "caucasian"
+      },
+      "style": "daylight_portrait",
+      "lighting": "natural diffused daylight",
+      "expression": "subtle smile",
+      "synthetic_indicators": [
+        "natural daylight specular diffusion",
+        "background blur artifact profile"
+      ]
+    },
+    {
+      "filename": "face_08.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "young_adult (20-25)",
+        "ethnicity": "south_asian"
+      },
+      "style": "studio_headshot",
+      "lighting": "soft studio",
+      "expression": "neutral professional",
+      "synthetic_indicators": [
+        "specular lighting symmetry across cheekbones",
+        "algorithmic pupil roundness"
+      ]
+    }
+  ]
+}

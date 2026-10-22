@@ -49,6 +49,23 @@ Optional:
 - `LLM_PROVIDER=groq` with `GROQ_API_KEY` and a vision-capable `LLM_MODEL`
 - `DETECTOR_MODEL=<huggingface model id>` plus `pip install transformers torch` to add a pretrained AI-image/deepfake classifier
 
+## Synthetic Face Dataset & Model Training
+
+TrustLens includes a curated dataset of photorealistic AI-generated faces and model training pipelines:
+
+- **Dataset**: High-resolution (1024x1024) photorealistic synthetic faces in `data/fake/`, paired reference faces in `data/real/`, and metadata manifest in `data/dataset_manifest.json`.
+- **Training**:
+  ```bash
+  # Train baseline classifier (runs immediately):
+  python train_face_detector.py --backend baseline
+
+  # Train deep learning transfer learning model (PyTorch):
+  pip install torch torchvision
+  python train_face_detector.py --backend pytorch --epochs 15
+  ```
+- **Dataset Scaler**: Run `python data/download_synthetic_dataset.py` to fetch additional samples.
+- **Standalone Face Analyser**: Run `python face_analyser.py` to analyze images using metadata, ELA, and 2D FFT frequency spectrum analysis.
+
 ## Files
 
 | File | Purpose |
@@ -60,6 +77,9 @@ Optional:
 | `llm.py` | Gemini / Groq calls, with image support |
 | `samples/` | Demo images with sources and ground truth ([details](samples/README.md)) |
 | `tests/` | Tests on the real samples |
+| `data/` | Synthetic AI-generated faces, reference real faces, and dataset manifest |
+| `face_analyser.py` | Standalone AI face forensic analyser (hash, metadata, ELA, FFT) |
+| `train_face_detector.py` | Deep learning (PyTorch) and baseline model training pipeline |
 
 Earlier prototypes from other tracks (`scam_analyser.py`, `link_checker.py`, `misinfo_analyser.py`, `vtop.py`) remain in the repo but aren't part of the Track 1 app.
 

@@ -1,0 +1,25 @@
+{
+  "model_type": "forensic_feature_logistic",
+  "weights": [
+    -0.4974832236766815,
+    -0.12626588344573975,
+    0.5514938831329346,
+    0.3484889268875122,
+    0.11115556955337524,
+    -0.5919992923736572
+  ],
+  "bias": -0.10338153690099716,
+  "features": [
+    "laplacian_var",
+    "fft_spectral_ratio",
+    "r_std",
+    "g_std",
+    "b_std",
+    "rg_diff"
+  ],
+  "accuracy": 62.5,
+  "classes": {
+    "0": "real",
+    "1": "fake_ai_generated"
+  }
+}
