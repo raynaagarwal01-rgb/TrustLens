@@ -1,3 +1,4 @@
+import { Trace } from "./Trace";
 import { useEffect, useRef, useState } from "react";
 import { api, type CaseResult, type Chain, type CustodyEntry, type Severity, type Signal } from "./api";
 import { verdictTone } from "./evidence";
@@ -18,8 +19,10 @@ const bySeverity = (a: { severity: Severity }, b: { severity: Severity }) => ORD
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 export function Details({ result, aiOn, onResult, onError, onInfo }: Props) {
-  const [tab, setTab] = useState<TabId>("findings");
-  useEffect(() => { if (result.media_kind === "audio" && tab === "campus") setTab("findings"); }, [result.case.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a circular checked against VTOP opens on that check: it's usually the deciding evidence
+  const startTab = (): TabId => (result.official_check?.steps && result.official_check.overall !== "not_verifiable" ? "campus" : "findings");
+  const [tab, setTab] = useState<TabId>(startTab);
+  useEffect(() => { setTab(startTab()); }, [result.case.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: "findings", label: "Findings", count: result.forensic_signals.filter((s) => s.severity !== "info").length + result.visual_findings.length },
     { id: "tests", label: "Tests" },
@@ -358,15 +361,21 @@ function Campus({ r, aiOn, onResult, onError }: { r: CaseResult; aiOn: boolean; 
           <>
             <div className={`callout callout--${oc.overall === "contradicted" ? "bad" : oc.overall === "confirmed" ? "good" : "warn"}`}><p>{oc.summary}</p></div>
             {oc.claims.length === 0 && <p className="muted">No exam, holiday or deadline claims found in this image.</p>}
-            <div>
-              {oc.claims.map((c, i) => (
-                <div className="claim" key={i}>
-                  <span className={`pill pill--${c.status === "contradicted" ? "bad" : c.status === "confirmed" ? "good" : ""}`} aria-label={c.status}>{icon[c.status]}</span>
-                  <div><b>{c.statement}</b><span className="muted">{c.official}</span></div>
-                </div>
-              ))}
-            </div>
-            <p className="muted" style={{ fontSize: 12 }}>Official data: {Object.entries(oc.data_source).map(([k, v]) => `${k} (${v})`).join(", ") || "none found"}</p>
+            {oc.steps ? (
+              <>
+                <h3 className="trace__heading">How it was checked{oc.checked_at ? `, ${oc.checked_at}` : ""}</h3>
+                <Trace key={oc.checked_at} steps={oc.steps} />
+              </>
+            ) : (
+              <div>
+                {oc.claims.map((c, i) => (
+                  <div className="claim" key={i}>
+                    <span className={`pill pill--${c.status === "contradicted" ? "bad" : c.status === "confirmed" ? "good" : ""}`} aria-label={c.status}>{icon[c.status]}</span>
+                    <div><b>{c.statement}</b><span className="muted">{c.official}</span></div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </section>

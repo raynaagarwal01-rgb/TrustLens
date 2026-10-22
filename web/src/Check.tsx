@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ACCEPT, api, type CaseResult } from "./api";
 import { evidenceMarks } from "./evidence";
+import { Trace } from "./Trace";
 import { Icon } from "./ui";
 
 type Item = { key: string; name: string; kind: string; status: "waiting" | "checking" | "done" | "error"; result?: CaseResult; error?: string };
@@ -28,6 +29,9 @@ function ResultCard({ r, onOpen }: { r: CaseResult; onOpen: (id: string) => void
         </div>
         <ol lang={lang}>{r.summary[lang].map((l, i) => <li key={i}>{l}</li>)}</ol>
       </div>
+      {r.official_check?.steps && (
+        <div className="check__why"><h2>Checked against VTOP</h2><Trace steps={r.official_check.steps} compact /></div>
+      )}
       {reasons.length > 0 && (
         <div className="check__why"><h2>Why</h2><ul>{reasons.map((x) => <li key={x}>{x}</li>)}</ul></div>
       )}

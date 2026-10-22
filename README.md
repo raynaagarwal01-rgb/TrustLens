@@ -29,7 +29,7 @@ Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DE
 | **Videos** | 12 frames across the clip, faces in each, a contact sheet and face close-ups to the AI review, a per-frame score on a timeline, credentials and AI tool names in metadata, the soundtrack through the voice-note check |
 | **Voice notes** | Spectrogram with marked edit points, digital-silence detection, transcript (Groq Whisper or Gemini) and a scam check of what is said |
 | **Screenshots** | Payment receipts and chats read by the AI review, then checked by code: 12-digit UPI references, real dates that match their weekday, one amount everywhere, message times in order |
-| **Context** | Earlier copies of a photo online (confirmed by image fingerprint), notice dates against VTOP via cli-top, event posters against official listings |
+| **Context** | Circulars checked against VTOP via cli-top automatically, with every step shown; earlier copies of a photo online (confirmed by image fingerprint); event posters against official listings |
 | **Many files** | Several files or a whole WhatsApp chat export (.zip): analysed in the background, sorted by risk, each file matched to its sender and time, CSV export |
 | **Evidence** | Plain three-line summary in English and Hindi, HTML report, signed PDF report with a QR code, "Verify a report" page and `python verify_report.py`, hash-chained custody log |
 
@@ -39,6 +39,7 @@ Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DE
                 ┌ forensics.py / advanced.py   hashes, metadata, C2PA, thumbnail, ELA, ghost, clones, grid, layers
 image ──────────┤ faces.py                      face boxes + close-ups for the AI review
                 └ vision LLM                    image + error-level map + face close-ups + every forensic finding
+circular ── campus_check.py  AI reads the claims → cli-top exams/calendar/holiday → code compares dates → step log
 video ── video_analyser.py   frames, faces, contact sheet → vision LLM; metadata/C2PA; soundtrack → audio_analyser
 audio ── audio_analyser.py   digital silence, spectrogram, metadata/C2PA; transcript → scam check (LLM)
                         │
@@ -53,25 +54,26 @@ audio ── audio_analyser.py   digital silence, spectrogram, metadata/C2PA; tr
 
 ## Calibration: what each test is allowed to do
 
-Techniques follow [Sherloq](https://github.com/GuidoBartoli/sherloq), [c2patool](https://github.com/contentauth/c2patool) and [forenix-oss](https://github.com/thunderstornX/forenix-oss), re-implemented here (no code copied). Each test was measured on real data before it was allowed to affect the verdict; the ones that didn't separate real from fake are shown as context only.
+Techniques follow [Sherloq](https://github.com/GuidoBartoli/sherloq), [c2patool](https://github.com/contentauth/c2patool) and [forenix-oss](https://github.com/thunderstornX/forenix-oss), re-implemented here (no code copied). Every test was measured on real data first, and its role was set by that measurement: tests that proved reliable decide the verdict, tests that find *where* an edit is point the AI review and the reviewer to it, and tests that couldn't yet separate real from fake are still run and shown to the reviewer but can't raise the score. That is deliberate: it is how TrustLens stays at **0/4 false alarms** on real files.
 
-| Test | Measured | In verdict |
+| Test | Measured | Role |
 |---|---|---|
-| Content Credentials (C2PA) | 13/13 AI faces identified from Google-signed credentials | Yes |
-| Embedded camera preview | 3/3 edited photos caught and located; hints on 2/37 odd camera files | Yes |
-| Error-level analysis | Region in 4/4 CASIA forgeries, 62–89% inside the true edit | Hint |
-| JPEG ghost | 3/3 low-quality splices located; none on authentic photos | Hint |
-| Copy-move | CASIA clone found; no medium/high alarms on real photos or AI faces | Yes |
-| JPEG grid alignment | 0/58 false alarms; ~45% of high-quality crops | Yes |
-| AI tool named in video/audio metadata | Tested with a tagged copy of the demo video | Yes |
-| Digital silence (voice notes) | 0 false alarms on 17 real recordings × 4 formats (WAV, WhatsApp-style Opus, MP3, AAC); 12/12 inserted silences found in WAV, survives MP3/AAC, erased by Opus (0/12) | Likely edited |
-| Screenshot format checks | Deterministic rules (UPI reference length, dates, weekdays, amounts, time order) with unit tests; run automatically when the AI review sees a payment or chat screenshot; 2 failures → likely manipulated, 3 → manipulated | Yes |
-| Reverse search | Only a perceptual-hash match counts (resized, recompressed copy: distance 0/64; different photo: 29/64) | Context |
-| Face noise/detail vs surroundings | Did **not** separate 91 synthetic face swaps from 8 real and 13 AI portraits | No (experimental) |
-| Face flicker between video frames | Real clips 1.6–3.4×, AI talking heads 1.4–4.3×: no separation | No (experimental) |
-| Background-noise jumps (audio) | 2 false alarms in 68 real files, ~half of test splices found | No (context) |
-| Median filtering, contrast, noise map | Did not separate edited from authentic | No (experimental) |
-| Chain of custody | Detects edited, deleted or reordered entries | Integrity |
+| Content Credentials (C2PA) | 13/13 AI faces identified from Google-signed credentials | Decides the verdict |
+| Embedded camera preview | 3/3 edited photos caught and located; hints on 2/37 odd camera files | Decides the verdict |
+| Error-level analysis | Region in 4/4 CASIA forgeries, 62–89% inside the true edit | Locates the edit for the AI review |
+| JPEG ghost | 3/3 low-quality splices located; none on authentic photos | Locates the edit for the AI review |
+| Copy-move | CASIA clone found; no medium/high alarms on real photos or AI faces | Decides the verdict |
+| JPEG grid alignment | 0/58 false alarms; ~45% of high-quality crops | Decides the verdict |
+| AI tool named in video/audio metadata | Tested with a tagged copy of the demo video | Decides the verdict |
+| Digital silence (voice notes) | 0 false alarms on 17 real recordings × 4 formats (WAV, WhatsApp-style Opus, MP3, AAC); 12/12 inserted silences found in WAV, survives MP3/AAC, erased by Opus (0/12) | Decides the verdict (likely edited) |
+| Screenshot format checks | Deterministic rules (UPI reference length, dates, weekdays, amounts, time order) with unit tests; run automatically when the AI review sees a payment or chat screenshot; 2 failures → likely manipulated, 3 → manipulated | Decides the verdict |
+| Circular vs VTOP (cli-top) | Deterministic date comparison with unit tests; a changed exam date, or a "holiday" on your exam day, is caught | Decides the verdict (likely manipulated) |
+| Reverse search | Only a perceptual-hash match counts (resized, recompressed copy: distance 0/64; different photo: 29/64) | Finds the earlier original |
+| Face noise/detail vs surroundings | Didn't yet separate 91 synthetic face swaps from 8 real and 13 AI portraits | Shown to the reviewer; face close-ups go to the AI review, which does judge faces |
+| Face flicker between video frames | Real clips 1.6–3.4×, AI talking heads 1.4–4.3×: overlapping ranges | Shown on the video timeline |
+| Background-noise jumps (audio) | 2 false alarms in 68 real files, ~half of test splices found | Marks possible edit points on the spectrogram |
+| Median filtering, contrast, noise map | Didn't separate edited from authentic | Inspection layers for the reviewer |
+| Chain of custody | Detects edited, deleted or reordered entries | Proves the evidence wasn't changed |
 
 Real-photo baselines: **0/4** false alarms on authentic phone photos and **0/11** on real portraits. Live with the vision model (Groq `qwen/qwen3.8-27b`): a screenshot of an AI face, with its credentials stripped as WhatsApp would, was still identified as AI-generated. These are small samples: they show the tools work on real data, not a benchmark score. There is no trained voice-clone detector, and TrustLens says so instead of guessing.
 
@@ -83,7 +85,14 @@ Real-photo baselines: **0/4** false alarms on authentic phone photos and **0/11*
 
 ## Campus checks
 
-**Is this notice true?** The vision model reads the dated claims; `vtop.py` fetches your exam schedule, academic calendar and holidays through [cli-top](https://cli-top.acmvit.in); `campus_check.py` compares dates **in code**. Tested live on a real VTOP account.
+**Is this circular true?** Open a notice, circular or forwarded announcement and TrustLens checks it against your official VTOP records automatically (or press **Check against VTOP** in *Context checks*, with **Fetch fresh VTOP data** to call cli-top live). The check shows its work, step by step:
+
+1. **Read the circular**: the AI review reads the title, issuer, date and every dated claim (exam moved, holiday declared, deadline).
+2. **Fetched your exam schedule** (`cli-top exams`), **academic calendar** (`cli-top calendar`) and **holiday list** (`cli-top holiday`) through [cli-top](https://cli-top.acmvit.in): what came back, and whether it was live VTOP or a saved copy.
+3. **Checked each claim, in code, not AI**: which course it matched and how (course code or name), the date the notice gives, the date VTOP gives, and the result.
+4. **Result**: a claim that contradicts VTOP raises the verdict to at least *likely manipulated*; a claim VTOP has no record for is marked *not checked*, never true.
+
+For example, the demo forged notice says the Database Systems FAT moved to 20-Nov-2026; TrustLens matches BACSE202 on the schedule, finds 13-Nov-2026, and reports the 7-day contradiction. The same steps appear on the phone page and in the signed PDF. Tested live on a real VTOP account; `samples/vtop_demo/` holds a saved cli-top output so the demo works without a login.
 
 **Is this event real?** `event_check.py` looks for the event in VTOP club events and on the web, flags fees to personal UPI IDs, urgency, personal email, risky links and copies of real events. "Not found online" is reported as unverified, never as proof of a scam.
 

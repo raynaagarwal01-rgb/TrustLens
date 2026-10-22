@@ -55,6 +55,21 @@ def test_contradiction_raises_verdict():
     assert any("VTOP" in n for n in res["rule_notes"])
 
 
+
+def test_steps_show_the_whole_process():
+    from unittest import mock
+    notice = {"is_campus_notice": True, "title": "FAT rescheduled", "issuer": "COE", "notice_date": "05-Nov-2026", "visible_text": "",
+              "claims": [claim(course="BACSE202", date="20-Nov-2026", statement="DBMS FAT on 20 Nov")]}
+    with mock.patch.object(cc, "extract_notice", return_value=notice):
+        r = cc.run_campus_check(b"")
+    titles = [s["title"] for s in r["steps"]]
+    assert titles[0] == "Read the circular" and titles[1] == "Fetched your exam schedule" and titles[-1] == "Result"
+    claim_step = next(s for s in r["steps"] if s["title"].startswith("Checked:"))
+    assert claim_step["tone"] == "bad" and claim_step["command"] == "code, not AI"
+    assert any("13-Nov-2026" in line for line in claim_step["lines"]) and any("contradicts" in line for line in claim_step["lines"])
+    assert r["summary"].startswith("One claim")
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

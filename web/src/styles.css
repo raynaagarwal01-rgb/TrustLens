@@ -643,3 +643,24 @@ p { margin: 0 0 0.6em; max-width: 72ch; }
 .check__row-text { display: grid; gap: 0.25rem; justify-items: start; min-width: 0; }
 .check__row-text b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--s-13); }
 .check__row-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------------ circular check, step by step */
+.trace__heading { font-size: var(--s-13); font-weight: 600; color: var(--graphite); margin: 1rem 0 0.25rem; }
+.trace { list-style: none; margin: 0; padding: 0; position: relative; }
+.trace::before { content: ""; position: absolute; left: 0.7rem; top: 0.9rem; bottom: 0.9rem; width: 1px; background: var(--rule); }
+.trace__step { display: grid; grid-template-columns: 1.4rem 1fr; gap: 0.75rem; padding: 0.6rem 0; position: relative;
+  animation: trace-in 260ms ease-out both; }
+.trace__mark { width: 1.4rem; height: 1.4rem; border-radius: 50%; display: grid; place-items: center; font-size: var(--s-12); font-weight: 700;
+  background: var(--sheet); border: 1px solid var(--rule); color: var(--graphite); position: relative; }
+.trace__step--good .trace__mark { background: var(--clear-wash); border-color: var(--clear); color: var(--clear); }
+.trace__step--bad .trace__mark { background: var(--manipulated-wash); border-color: var(--manipulated); color: var(--manipulated); }
+.trace__step--warn .trace__mark { background: var(--caution-wash); border-color: var(--caution); color: var(--caution); }
+.trace__title { margin: 0; font-size: var(--s-15); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; }
+.trace__title code { font-family: var(--mono); font-size: var(--s-12); color: var(--graphite); background: var(--sheet-2); padding: 0.05rem 0.35rem; border-radius: var(--radius-s); }
+.trace__detail { margin: 0.15rem 0 0; font-size: var(--s-13); color: var(--graphite); }
+.trace__step--bad .trace__detail { color: var(--manipulated); }
+.trace__step ul { margin: 0.35rem 0 0; padding-left: 1rem; font-size: var(--s-13); color: var(--ink); }
+.trace__step ul li { margin: 0.1rem 0; }
+.trace--compact .trace__step { padding: 0.4rem 0; }
+@keyframes trace-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .trace__step { animation: none; } }

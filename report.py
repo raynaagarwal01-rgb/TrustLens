@@ -39,9 +39,13 @@ def _official_section(r: dict) -> str:
                    f"<td>{_e(c['official'])}</td></tr>" for c in oc["claims"]) or \
         "<tr><td colspan=3 class='muted'>No checkable claims found.</td></tr>"
     src = ", ".join(f"{k}: {v}" for k, v in oc["data_source"].items()) or "none"
+    steps = "".join(f"<li><b>{_e(st['title'])}</b>" + (f" <code>{_e(st['command'])}</code>" if st.get("command") else "")
+                    + f"<br>{_e(st['detail'])}" + ("<ul>" + "".join(f"<li>{_e(x)}</li>" for x in st.get("lines", [])) + "</ul>" if st.get("lines") else "")
+                    + "</li>" for st in oc.get("steps", []))
+    steps = f"<h3>How it was checked</h3><ol>{steps}</ol>" if steps else ""
     return (f"<h2>Official record check (VTOP via cli-top)</h2><p><b>{_e(oc['summary'])}</b></p>"
             f"<table><tr><th>Result</th><th>Claim in the image</th><th>Official record</th></tr>{rows}</table>"
-            f"<p class='muted'>Data source: {_e(src)}</p>")
+            f"{steps}<p class='muted'>Data source: {_e(src)}</p>")
 
 
 def _event_section(r: dict) -> str:

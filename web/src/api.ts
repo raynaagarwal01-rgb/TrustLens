@@ -63,10 +63,15 @@ export interface Advanced {
 
 export interface NoticeClaim {
   type: string; course: string; date: string; statement: string;
-  status: "confirmed" | "contradicted" | "not_checked"; official: string;
+  status: "confirmed" | "contradicted" | "not_checked"; official: string; trace?: string[];
 }
 
+export interface CheckStep { title: string; command: string; detail: string; lines: string[]; tone: "info" | "good" | "bad" | "warn" }
+
 export interface OfficialCheck {
+  steps?: CheckStep[];
+  checked_at?: string;
+  live?: boolean;
   overall: "contradicted" | "confirmed" | "not_verifiable";
   summary: string;
   claims: NoticeClaim[];

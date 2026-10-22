@@ -298,6 +298,11 @@ def build_pdf(r: dict, custody_head: str = "") -> tuple[bytes, str]:
             story += [_table([[P("Status", "cellb"), P("Claim", "cellb"), P("Official record", "cellb")]] +
                              [[P(c["status"], "cell"), P(c["statement"], "cell"), P(c["official"], "cell")] for c in sec.get("claims", [])],
                              [26 * mm, (W - 26 * mm) / 2, (W - 26 * mm) / 2])]
+            if sec.get("steps"):
+                story += [P("How it was checked" + (f" ({sec['checked_at']})" if sec.get("checked_at") else ""), "small")]
+                for n, st in enumerate(sec["steps"], 1):
+                    story += [P(f"{n}. {st['title']}" + (f" [{st['command']}]" if st.get("command") else "") + f": {st['detail']}", "small")]
+                    story += [P(f"    – {line}", "small") for line in st.get("lines", [])[:8]]
         elif key == "event_check":
             story += [P(f"{sec.get('verdict_label', sec.get('verdict', ''))}: {sec.get('summary', '')}")]
             story += [P(f"• {f['flag']}: {f['detail']}", "small") for f in sec.get("flags", [])]

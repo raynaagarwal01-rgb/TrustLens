@@ -145,10 +145,20 @@ def _store_images(d: Path, images: dict):
 SCREENSHOT_KINDS = ("screenshot", "receipt", "payment", "chat")
 
 
+NOTICE_KINDS = ("document", "other screenshot")
+
+
 def auto_checks(data: bytes, result: dict) -> dict:
     """With the AI review on, a payment or chat screenshot gets the screenshot forgery check straight away,
-    so its verdict includes the format checks instead of waiting for a button press."""
+    and a notice or circular is checked against VTOP, so the verdict includes them without a button press."""
     kind = (result.get("image_kind") or "").lower()
+    if result.get("media_kind", "image") == "image" and result.get("llm_used") and any(k in kind for k in NOTICE_KINDS):
+        try:
+            check = campus_check.run_campus_check(data, live=False)
+            if check["notice"].get("is_campus_notice") and check["claims"]:
+                return campus_check.apply_to_result(result, check)
+        except Exception as e:
+            result["notice_check_error"] = f"{type(e).__name__}: {str(e)[:160]}"
     if result.get("media_kind", "image") != "image" or not result.get("llm_used") or not any(k in kind for k in SCREENSHOT_KINDS):
         return result
     try:
