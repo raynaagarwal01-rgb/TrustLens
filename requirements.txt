@@ -1,7 +1,7 @@
 pillow
 numpy
 scipy
-opencv-python-headless
+opencv-python-headless<5  # OpenCV 5 pip builds drop CascadeClassifier (face detection)
 requests
 starlette>=0.40
 uvicorn
