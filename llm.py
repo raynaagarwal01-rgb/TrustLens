@@ -17,32 +17,35 @@ _one_image_only = os.getenv("LLM_MAX_IMAGES", "") == "1"
 
 
 def combine_images(images: list[tuple[bytes, str]]) -> tuple[bytes, str]:
-    """Several images as one labelled picture (IMAGE 1, IMAGE 2, ...), for models that accept one image."""
+    """Several images as one labelled picture, for models that accept one image: IMAGE 1 across the full
+    width (it is the main evidence, often a frame sheet), the rest side by side underneath."""
     import io
     from PIL import Image, ImageDraw, ImageFont
+    W = 1536
     ims = [Image.open(io.BytesIO(b)).convert("RGB") for b, _ in images]
-    cell = 768
-    for im in ims:
+    first = ims[0].copy()
+    first.thumbnail((W, 1400))
+    rest = ims[1:]
+    cell = W // max(1, len(rest)) if rest else W
+    for im in rest:
         im.thumbnail((cell, cell))
-    cols = 1 if len(ims) == 1 else 2
-    rows = (len(ims) + cols - 1) // cols
-    row_h = [max(im.height for im in ims[r * cols:(r + 1) * cols]) + 34 for r in range(rows)]
-    sheet = Image.new("RGB", (cell * cols, sum(row_h)), (255, 255, 255))
+    rest_h = (max(im.height for im in rest) + 34) if rest else 0
+    sheet = Image.new("RGB", (W, first.height + 34 + rest_h), (255, 255, 255))
     d = ImageDraw.Draw(sheet)
-    try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 22)
-    except OSError:
+    font = None
+    for name in ("DejaVuSans-Bold.ttf", "arialbd.ttf"):
         try:
-            font = ImageFont.truetype("arialbd.ttf", 22)
+            font = ImageFont.truetype(name, 22)
+            break
         except OSError:
-            font = ImageFont.load_default()
-    y = 0
-    for r in range(rows):
-        for c, im in enumerate(ims[r * cols:(r + 1) * cols]):
-            i = r * cols + c
-            d.text((c * cell + 6, y + 4), f"IMAGE {i + 1}", fill=(0, 0, 0), font=font)
-            sheet.paste(im, (c * cell, y + 30))
-        y += row_h[r]
+            continue
+    font = font or ImageFont.load_default()
+    d.text((6, 4), "IMAGE 1", fill=(0, 0, 0), font=font)
+    sheet.paste(first, (0, 30))
+    y = first.height + 34
+    for i, im in enumerate(rest):
+        d.text((i * cell + 6, y + 4), f"IMAGE {i + 2}", fill=(0, 0, 0), font=font)
+        sheet.paste(im, (i * cell, y + 30))
     buf = io.BytesIO()
     sheet.save(buf, "JPEG", quality=88)
     return buf.getvalue(), "image/jpeg"

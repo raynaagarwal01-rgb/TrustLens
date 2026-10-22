@@ -125,6 +125,8 @@ def headline(r: dict) -> str:
     v = r.get("verdict")
     if v == "no_evidence" and r.get("media_kind") == "audio":
         return "No traces found"
+    if v == "no_evidence" and r.get("media_kind") == "video" and r.get("llm_used"):
+        return "No signs found"
     if v == "no_evidence" and not r.get("llm_used"):
         return "Not enough evidence"
     if v == "inconclusive":

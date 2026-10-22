@@ -187,7 +187,7 @@ def build_pdf(r: dict, custody_head: str = "") -> tuple[bytes, str]:
     case = r.get("case", {})
     integ = r["integrity"]
     v = r["verdict"]
-    unchecked = v == "no_evidence" and (not r.get("llm_used") or r.get("media_kind") == "audio")
+    unchecked = v == "no_evidence" and (not r.get("llm_used") or r.get("media_kind", "image") != "image")
     if unchecked:
         v = "inconclusive"  # colour only: a result nobody could fully check is never shown as cleared
     buf = io.BytesIO()
@@ -215,6 +215,8 @@ def build_pdf(r: dict, custody_head: str = "") -> tuple[bytes, str]:
     # verdict block
     sm = r.get("summary") or {}
     type_line = ("A cloned voice can't be ruled out from the sound alone" if unchecked and r.get("media_kind") == "audio"
+                 else "The AI review saw no deepfake signs, but a clean-looking video can still be one"
+                 if unchecked and r.get("media_kind") == "video" and r.get("llm_used")
                  else "AI review was off, and forensic tests alone can't spot most AI images and deepfakes" if unchecked
                  else "Nothing found that indicates editing or AI generation" if r["verdict"] == "no_evidence"
                  else r.get("fake_type_label") or "")

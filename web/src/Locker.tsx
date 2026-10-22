@@ -68,7 +68,7 @@ export function Locker({ open, status, cases, batches, samples, currentId, ai, o
             <span style={{ minWidth: 0 }}>
               <span className="case-item__name">{c.name}</span>
               <span className="case-item__meta">
-                <span className={`dot dot--${c.verdict === "no_evidence" && (!c.llm_used || c.media_kind === "audio") ? "inconclusive" : c.verdict}`} />
+                <span className={`dot dot--${c.verdict === "no_evidence" && (!c.llm_used || (c.media_kind ?? "image") !== "image") ? "inconclusive" : c.verdict}`} />
                 {c.headline || c.verdict_label}
               </span>
             </span>

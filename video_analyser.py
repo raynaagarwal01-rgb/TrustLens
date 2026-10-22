@@ -75,6 +75,13 @@ Look for:
   white block or change shape between frames; eyes that don't blink naturally or look in different
   directions; earrings, glasses or moles that appear, vanish or change; a face that changes identity,
   age or shape between frames; a mouth that looks pasted on.
+- Animated-photo deepfakes (one still photo made to talk: SadTalker, D-ID, HeyGen photo avatars,
+  LivePortrait) are very common: only the head and mouth move while hair, shoulders, clothes and
+  background stay frozen like a photo across every frame; the mouth and teeth are blurrier or smeared
+  compared with the eyes; blinking is missing or mechanical; the head turns without the body. The
+  readings give how much of the picture outside the head changes across the clip: near 0% with a
+  moving face is consistent with an animated photo (but also with a locked-off camera and a still
+  background, so look at hair, clothes and shoulders too).
 - Fully AI-generated video: objects and hands that morph between frames, garbled or changing text and
   logos, physics that doesn't hold (hair, water, cloth), backgrounds that melt, people with too-smooth
   waxy skin, generator watermarks in a corner (e.g. Sora, Veo, Kling, Runway, Pika, Hailuo).
@@ -150,6 +157,24 @@ def _label_font(size: int):
         except OSError:
             continue
     return ImageFont.load_default()
+
+
+def _outside_motion(frames: list[dict]) -> dict | None:
+    """Share of the picture outside the head that changes across the sampled frames (context for the
+    AI review; not calibrated, so it never scores on its own)."""
+    with_face = [f for f in frames if f["faces"]]
+    if len(frames) < 4 or not with_face:
+        return None
+    g = np.stack([np.asarray(f["image"].convert("L"), np.float32) for f in frames])
+    H, W = g.shape[1:]
+    x0, y0, x1, y1 = with_face[len(with_face) // 2]["faces"][0]
+    cx, cy, sz = (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0
+    mask = np.ones((H, W), bool)
+    mask[max(0, int(cy - 1.6 * sz)):int(cy + 2.2 * sz), max(0, int(cx - 1.6 * sz)):int(cx + 1.6 * sz)] = False
+    if mask.mean() < 0.08:
+        return None
+    std = g.std(axis=0)[mask]
+    return {"moving_share": round(float((std > 2.0).mean()), 3), "area_share": round(float(mask.mean()), 2)}
 
 
 def contact_sheet(frames: list[dict], width: int = 1536) -> Image.Image:
@@ -251,6 +276,8 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
             f"picture (median of {len(flick)} frames; max {max(flick):.1f}x). Talking and head movement raise "
             "this too, so it never changes the verdict."))
 
+    motion = _outside_motion(frames)
+
     # sheet for the vision model: 6 frames spread across the clip
     pick = [frames[int(round(x))] for x in np.linspace(0, len(frames) - 1, min(SHEET_FRAMES, len(frames)))]
     sheet = contact_sheet(pick)
@@ -266,6 +293,9 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
                     f"Content Credentials: {json.dumps(c2) if c2 else 'none'}",
                     f"AI tools named in metadata: {', '.join(tools) or 'none'}",
                     f"Face close-ups are from frames: {', '.join(f['label'] for f in face_frames) or 'none (no face found)'}",
+                    (f"Picture outside the head that changes across the clip: {motion['moving_share']:.0%} "
+                     f"(of {motion['area_share']:.0%} of the frame measured)" if motion else
+                     "Picture outside the head that changes: not measurable (the head fills the frame)"),
                     "Face flicker per frame (face change / whole-frame change between consecutive frames; "
                     "experimental): " + ", ".join(f"{f['label']}={f['flicker']}" for f in frames if f['flicker'] is not None)]
         try:
@@ -314,6 +344,9 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
     if floor >= 85 and confidence != "high":
         confidence = "high"
     verdict, label = ea._band(score)
+    if llm and verdict == "no_evidence":
+        # deepfake video can look clean even to the AI review: say so instead of showing an all-clear
+        label = "No signs found (a clean-looking video can still be a deepfake)"
     if not llm and verdict == "no_evidence":
         label = "Not enough evidence: AI review was off"
         explanation = ("Only metadata and frame tests ran, and they found nothing decisive. Deepfakes and AI "
@@ -372,7 +405,7 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
         "video": {"duration": info.get("duration", round(n_total / fps, 2)), "fps": round(fps, 2),
                   "frames_total": n_total, "codec": vstream.get("codec", ""), "container": info.get("container", ""),
                   "tags": tags, "ai_tools_named": tools, "timeline": timeline, "key_frame": key["label"],
-                  "face_findings": face_notes, "audio": audio},
+                  "face_findings": face_notes, "audio": audio, "outside_motion": motion},
         "images": images,
         "llm_used": bool(llm), "error": error,
     }

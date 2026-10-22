@@ -36,7 +36,7 @@ interface Props {
 }
 
 /** Name the specific finding when the type is known, instead of "manipulated or AI-generated". */
-const unchecked = (r: CaseResult) => r.verdict === "no_evidence" && (!r.llm_used || r.media_kind === "audio");
+const unchecked = (r: CaseResult) => r.verdict === "no_evidence" && (!r.llm_used || r.media_kind !== "image");
 
 function Summary({ r }: { r: CaseResult }) {
   const [lang, setLang] = useState<"en" | "hi">(() => {
@@ -82,6 +82,7 @@ export function Verdict({ result: r, onMark }: Props) {
       <div className="verdict__band">
         <h2 className="verdict__label display">{r.headline || r.verdict_label}</h2>
         <div className="verdict__type">{unchecked(r) && r.media_kind === "audio" ? "A cloned voice can't be ruled out from the sound alone"
+            : unchecked(r) && r.media_kind === "video" && r.llm_used ? "The AI review saw no deepfake signs, but a clean-looking video can still be one"
             : unchecked(r) ? `AI review was off, and forensic tests alone can't spot most ${r.media_kind === "video" ? "deepfakes" : "AI images"}`
             : r.verdict === "no_evidence" ? "Nothing found that indicates editing or AI generation" : r.fake_type_label}</div>
       </div>
