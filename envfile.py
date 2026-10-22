@@ -18,9 +18,11 @@ def load(path: Path = ENV_PATH) -> list[str]:
     """Set variables from the file that aren't already set. Returns the names it set."""
     loaded = []
     try:
-        text = path.read_text(encoding="utf-8-sig")  # -sig: Notepad may add a BOM
+        raw = path.read_bytes()
     except OSError:
         return loaded
+    # PowerShell's ">" writes UTF-16; Notepad may add a UTF-8 BOM
+    text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8-sig", "replace")
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
