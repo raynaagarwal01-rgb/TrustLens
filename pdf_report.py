@@ -151,6 +151,7 @@ def _qr(token: str) -> Image.Image | None:
     try:
         import cv2
         q = cv2.QRCodeEncoder.create().encode(token)
+        q = cv2.copyMakeBorder(q, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=255)  # quiet zone: cameras need it
         im = Image.fromarray(q).convert("L")
         return im.resize((im.width * 8, im.height * 8), Image.NEAREST)
     except Exception:

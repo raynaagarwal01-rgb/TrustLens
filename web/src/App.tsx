@@ -5,6 +5,7 @@ import { BatchView } from "./Batch";
 import { DEMO_STEPS, DemoBar, STEP_SECONDS } from "./Demo";
 import { Details } from "./Details";
 import { Locker } from "./Locker";
+import { PhoneDialog } from "./Phone";
 import { Verdict } from "./Verdict";
 import { VerifyView } from "./Verify";
 import { Ruler, Viewer } from "./Viewer";
@@ -44,6 +45,7 @@ export function App() {
   const [mark, setMark] = useState<number | null>(null);
   const [lockerOpen, setLockerOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const [demo, setDemo] = useState<{ step: number; playing: boolean; ids: string[]; preparing: { done: number; total: number } | null } | null>(null);
   const compareInput = useRef<HTMLInputElement>(null);
   const shownId = useRef("");
@@ -210,7 +212,8 @@ export function App() {
       <Locker open={lockerOpen} status={status} cases={cases} batches={batchList} samples={samples} currentId={result?.case.id ?? null}
               ai={ai} onAi={setAi} onFiles={openFiles} onSample={openSample} onCase={(id) => loadCase(id)}
               onBatch={(id) => { setLockerOpen(false); go(`#/batch/${id}`); }}
-              onVerify={() => { setLockerOpen(false); go("#/verify"); }} onDemo={startDemo} onClose={() => setLockerOpen(false)} />
+              onVerify={() => { setLockerOpen(false); go("#/verify"); }} onDemo={startDemo}
+              onPhone={() => { setLockerOpen(false); setPhoneOpen(true); }} onClose={() => setLockerOpen(false)} />
       <main className="main" id="main">
         {route.kind === "batch" && <BatchView id={route.id} onOpen={(id) => loadCase(id)} onMenu={() => setLockerOpen(true)} />}
         {route.kind === "verify" && <VerifyView onMenu={() => setLockerOpen(true)} onOpen={(id) => loadCase(id)} />}
@@ -330,6 +333,7 @@ export function App() {
                  onPrev={() => demoGo((demo?.step ?? 0) - 1)} onNext={() => demoGo((demo?.step ?? 0) + 1)}
                  onToggle={() => setDemo((d) => d && { ...d, playing: !d.playing })} onExit={() => setDemo(null)} />
       )}
+      {phoneOpen && <PhoneDialog onClose={() => setPhoneOpen(false)} />}
       {toast && <Toast message={toast.message} kind={toast.kind} onClose={() => setToast(null)} />}
     </div>
   );

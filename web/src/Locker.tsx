@@ -17,6 +17,7 @@ interface Props {
   onBatch: (id: string) => void;
   onVerify: () => void;
   onDemo: () => void;
+  onPhone: () => void;
   onClose: () => void;
 }
 
@@ -29,7 +30,7 @@ const GROUP_LABEL: Record<string, string> = {
 const KIND_TAG: Record<string, string> = { video: "Video", audio: "Audio" };
 
 export function Locker({ open, status, cases, batches, samples, currentId, ai, onAi, onFiles, onSample, onCase, onBatch,
-                         onVerify, onDemo, onClose }: Props) {
+                         onVerify, onDemo, onPhone, onClose }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const groups = GROUP_ORDER.map((g) => ({ g, items: samples.filter((s) => s.group === g) })).filter((x) => x.items.length);
   const aiAvailable = !!status?.llm.configured;
@@ -53,6 +54,7 @@ export function Locker({ open, status, cases, batches, samples, currentId, ai, o
         <div className="locker__links">
           <button className="link-btn" onClick={onDemo}><Icon name="play" /> Play demo</button>
           <button className="link-btn" onClick={onVerify}><Icon name="shield" /> Verify a report</button>
+          <button className="link-btn" onClick={onPhone}><Icon name="open" /> Use on your phone</button>
         </div>
       </div>
 

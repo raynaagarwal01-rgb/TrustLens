@@ -783,6 +783,88 @@ async def list_batches(request: Request):
     return ok(batches().list())
 
 
+# --------------------------------------------------------------------------- phone access (python server.py --lan)
+
+import secrets
+import socket
+
+LAN = {"on": False, "port": 8000, "token": secrets.token_urlsafe(9)}
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+
+
+def lan_ip() -> str:
+    """This computer's address on the local network (no traffic is sent: UDP connect only picks a route)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+def phone_url() -> str:
+    return f"http://{lan_ip()}:{LAN['port']}/?k={LAN['token']}"
+
+
+class PhoneAccess:
+    """With --lan, other devices on the network may only use TrustLens after opening the QR link, which
+    carries a secret code (kept in a cookie afterwards). This computer itself never needs the code."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not LAN["on"]:
+            return await self.app(scope, receive, send)
+        client = (scope.get("client") or ("", 0))[0]
+        if client in LOCAL_HOSTS:
+            return await self.app(scope, receive, send)
+        from urllib.parse import parse_qs
+        cookies = {}
+        for k, v in scope.get("headers", []):
+            if k == b"cookie":
+                for part in v.decode("latin-1").split(";"):
+                    if "=" in part:
+                        a, b = part.strip().split("=", 1)
+                        cookies[a] = b
+        key = parse_qs(scope.get("query_string", b"").decode()).get("k", [""])[0]
+        if cookies.get("tl_access") == LAN["token"]:
+            return await self.app(scope, receive, send)
+        if key == LAN["token"]:
+            async def send_with_cookie(msg):
+                if msg["type"] == "http.response.start":
+                    msg.setdefault("headers", []).append(
+                        (b"set-cookie", f"tl_access={LAN['token']}; Path=/; SameSite=Lax; HttpOnly".encode()))
+                await send(msg)
+            return await self.app(scope, receive, send_with_cookie)
+        body = ("<!doctype html><meta name=viewport content='width=device-width'><body style='font:16px system-ui;"
+                "padding:2rem;max-width:30rem'><h1>TrustLens</h1><p>Scan the QR code shown on the TrustLens "
+                "computer (\u201cUse on your phone\u201d) to open it here.</p>").encode()
+        await send({"type": "http.response.start", "status": 403,
+                    "headers": [(b"content-type", b"text/html; charset=utf-8")]})
+        await send({"type": "http.response.body", "body": body})
+
+
+async def phone_info(request: Request):
+    if not LAN["on"]:
+        return ok({"on": False, "how": "Start TrustLens with: python server.py --lan"})
+    return ok({"on": True, "url": phone_url(), "ip": lan_ip(), "port": LAN["port"]})
+
+
+async def phone_qr(request: Request):
+    if not LAN["on"]:
+        return err("Phone access is off. Start TrustLens with: python server.py --lan", 409)
+    import cv2
+    q = cv2.QRCodeEncoder.create().encode(phone_url())
+    q = cv2.copyMakeBorder(q, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=255)  # quiet zone: cameras need it
+    im = Image.fromarray(q).convert("L").resize((q.shape[1] * 10, q.shape[0] * 10), Image.NEAREST)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return Response(buf.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
 async def index(request: Request):
     page = WEB / "index.html"
     if not page.exists():
@@ -818,6 +900,8 @@ routes = [
     Route("/api/batches", create_batch, methods=["POST"]),
     Route("/api/batches/{bid}", get_batch),
     Route("/api/custody", custody_log),
+    Route("/api/phone", phone_info),
+    Route("/api/phone/qr.png", phone_qr),
     Route("/", index),
 ]
 if (WEB / "assets").exists():
@@ -827,10 +911,15 @@ if (WEB / "fonts").exists():
 
 app = Starlette(routes=routes)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(PhoneAccess)
 
 if __name__ == "__main__":
+    import sys
     import uvicorn
     port = int(os.getenv("TRUSTLENS_PORT", "8000"))
+    LAN["on"] = "--lan" in sys.argv or os.getenv("TRUSTLENS_LAN") == "1"
+    LAN["port"] = port
+    host = "0.0.0.0" if LAN["on"] else "127.0.0.1"
     if os.getenv("TRUSTLENS_NO_BROWSER") != "1":
         threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
 
@@ -845,9 +934,12 @@ if __name__ == "__main__":
             threading.Timer(2.0, lambda: os._exit(0)).start()
             super().handle_exit(sig, frame)
 
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=1)
+    config = uvicorn.Config(app, host=host, port=port, log_level="warning", timeout_graceful_shutdown=1)
     print(f"TrustLens is running at http://127.0.0.1:{port}  (press Ctrl+C to stop)", flush=True)
     print(envfile.ai_review_status()[1], flush=True)
+    if LAN["on"]:
+        print(f"Phone access: ON. Press 'Use on your phone' in TrustLens and scan the QR code ({lan_ip()}:{port}).", flush=True)
+        print("  If Windows asks whether to allow Python on networks, choose Allow (private networks).", flush=True)
     try:
         _Server(config).run()
     except KeyboardInterrupt:
