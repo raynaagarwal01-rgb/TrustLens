@@ -1,0 +1,27 @@
+→ ATTENDANCE
+
+  INDEX │ SUBJECT                 │ TYPE             │ FACULTY NAME         │ CLASSES ATTENDED │ PERCENTAGE │ 75% ALERT
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+      1 │ Problem Solving         │ Lab Only         │ Faculty A            │ 42/50            │ 84%        │ [32mCan miss 3 lab(s)[0m
+        │ using Java              │                  │                      │                  │            │
+      2 │ Database Systems        │ Embedded Theory  │ Faculty B            │ 28/37            │ 76%        │ [32mCan miss 0[0m
+        │                         │                  │                      │                  │            │ [32mclass(es)[0m
+      3 │ Database Systems        │ Embedded Lab     │ Faculty B            │ 22/28            │ 79%        │ [32mCan miss 0 lab(s)[0m
+      4 │ Computer Networks       │ Embedded Theory  │ Faculty C            │ 31/39            │ 80%        │ [32mCan miss 2[0m
+        │                         │                  │                      │                  │            │ [32mclass(es)[0m
+      5 │ Computer Networks       │ Embedded Lab     │ Faculty C            │ 20/24            │ 84%        │ [32mCan miss 1 lab(s)[0m
+      6 │ Embedded Systems        │ Embedded Theory  │ Faculty D            │ 30/39            │ 77%        │ [32mCan miss 1[0m
+        │ [32mArchitecture[0m            │                  │                      │                  │            │ [32mclass(es)[0m
+      7 │ Embedded Systems        │ Embedded Lab     │ Faculty D            │ 18/24            │ 75%        │ [32mCan miss 0 lab(s)[0m
+        │ Architecture            │                  │                      │                  │            │
+      8 │ Principles of           │ Theory Only      │ Faculty E            │ 30/39            │ 77%        │ [32mCan miss 1[0m
+        │ [32mSociology[0m               │                  │                      │                  │            │ [32mclass(es)[0m
+      9 │ Probability and         │ Embedded Theory  │ Faculty F            │ 27/37            │ 73%        │ [31mAttend 2 more[0m
+        │ [31mStatistics[0m              │                  │                      │                  │            │ [31mclass(es)[0m
+     10 │ Probability and         │ Embedded Lab     │ Faculty F            │ 22/26            │ 85%        │ [32mCan miss 1 lab(s)[0m
+        │ Statistics              │                  │                      │                  │            │
+     11 │ Qualitative and         │ Soft Skill       │ Faculty G            │ 28/37            │ 76%        │ [32mCan miss 0[0m
+        │ [32mQuantitative[0m            │                  │                      │                  │            │ [32mclass(es)[0m
+        │ Skills Practice I       │                  │                      │                  │            │
+
+✓ ATTENDANCE (5.75s)

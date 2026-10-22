@@ -9,9 +9,9 @@ Built solo in 24 hours for a hackathon (Track 3: AI-Powered Misinformation and F
 | Module | Status |
 |---|---|
 | Misinformation analyser (`misinfo_analyser.py`) | ✅ Done |
-| Campus rumour check against official records | ✅ Done (analyser side); VTOP wrapper next |
+| Campus rumour check against official records | ✅ Done (analyser side); VTOP sources wired, parsers tuned as outputs arrive |
 | Source and link credibility (`link_checker.py`) | ✅ Done |
-| cli-top / VTOP wrapper | 🔜 Next |
+| cli-top / VTOP wrapper (`vtop.py`): attendance parsing and skip maths | ✅ Done |
 | Daily verified news briefing for your courses | 🔜 Planned |
 | Attendance alerts and study timetable | 🔜 Planned |
 | Scam message analyser (`scam_analyser.py`) | ✅ Done (from the earlier scam-detection idea) |
@@ -56,6 +56,18 @@ export VT_API_KEY=your_key          # VirusTotal
 
 python misinfo_analyser.py   # runs the demo cases
 ```
+
+## VTOP via cli-top
+
+`vtop.py` runs [cli-top](https://cli-top.acmvit.in) locally and parses its tables, joining wrapped cells back together. Attendance maths follows VTOP's rules (percentage rounded up, a lab counts as 2 classes) and matches cli-top's own alerts exactly.
+
+```python
+from vtop import attendance, attendance_summary, what_if, official_records
+print(attendance_summary(attendance()))
+records, errors = official_records()   # class messages, exams, calendar, holidays
+```
+
+Set `VTOP_DEMO=1` to read saved snapshots instead of calling VTOP (every live call saves one to `snapshots/`, which is git-ignored). Run tests with `python tests/test_vtop.py`.
 
 ## Privacy
 

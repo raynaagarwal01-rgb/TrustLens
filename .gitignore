@@ -6,3 +6,4 @@ venv/
 .streamlit/secrets.toml
 .DS_Store
 .trustlens_cache.json
+snapshots/
