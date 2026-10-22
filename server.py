@@ -457,4 +457,22 @@ if __name__ == "__main__":
     port = int(os.getenv("TRUSTLENS_PORT", "8000"))
     if os.getenv("TRUSTLENS_NO_BROWSER") != "1":
         threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    class _Server(uvicorn.Server):
+        """Ctrl+C stops the server even while the browser holds connections open or an analysis
+        (or cli-top) is still running: a 2-second grace period, then a hard exit. A second Ctrl+C
+        exits at once."""
+        def handle_exit(self, sig, frame):
+            if self.should_exit:
+                os._exit(0)
+            print("\nStopping TrustLens…", flush=True)
+            threading.Timer(2.0, lambda: os._exit(0)).start()
+            super().handle_exit(sig, frame)
+
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=1)
+    print(f"TrustLens is running at http://127.0.0.1:{port}  (press Ctrl+C to stop)", flush=True)
+    try:
+        _Server(config).run()
+    except KeyboardInterrupt:
+        pass
+    print("TrustLens stopped.", flush=True)
+    os._exit(0)
