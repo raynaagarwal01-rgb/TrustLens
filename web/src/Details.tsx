@@ -393,7 +393,7 @@ function Campus({ r, aiOn, onResult, onError }: { r: CaseResult; aiOn: boolean; 
         <p className="muted" style={{ fontSize: 13 }}>For circulars, exam notices and forwarded announcements: the dated claims are compared with your official VTOP exam schedule, academic calendar and holidays. The date comparison is done by code, not by AI.</p>
         <div className="check-actions">
           <label className="toggle" style={{ color: "inherit" }}>
-            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Fetch fresh VTOP data with cli-top (slower)
+            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> Fetch fresh data from VTOP (slower)
           </label>
           <button className="btn btn--primary" disabled={!aiOn || !!busy} onClick={() => run("notice")}>
             {busy === "notice" ? "Checking VTOP records…" : oc ? "Check again" : "Check against VTOP"}

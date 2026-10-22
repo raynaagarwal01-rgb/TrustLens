@@ -193,13 +193,13 @@ def vtop_events(event: dict, live: bool) -> dict:
         try:
             raw, source = vtop.run_raw("events"), "live VTOP"
         except vtop.VtopError as e:
-            return {"status": "error", "detail": str(e)}
+            return {"status": "error", "detail": str(e).replace("cli-top", "VTOP connector")}
     else:
         snap = Path(vtop.SNAPSHOT_DIR) / "events.txt"
         if snap.exists():
             raw, source = snap.read_text(encoding="utf-8"), "saved VTOP snapshot"
     if raw is None:
-        return {"status": "skipped", "detail": "No VTOP events data (run `python vtop.py events` once)."}
+        return {"status": "skipped", "detail": "No VTOP events data saved yet."}
     rows = [row for t in vtop.parse_tables(raw) for row in t]
     best, score = None, 0.0
     for row in rows:

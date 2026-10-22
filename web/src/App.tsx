@@ -309,7 +309,7 @@ export function App() {
               </div>
               <div className="use">
                 <h2>Screenshots, notices and posters</h2>
-                <p>Checks payment receipts and chats against real formats, notice dates against your VTOP records via cli-top,
+                <p>Checks payment receipts and chats against real formats, notice dates against your VTOP records,
                   and event posters against official listings.</p>
               </div>
               <div className="use">

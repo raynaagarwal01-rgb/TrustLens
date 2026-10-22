@@ -269,16 +269,21 @@ def check_claims(notice: dict, official: dict) -> dict:
 
 
 SOURCE_STEPS = {
-    "exams": ("Fetched your exam schedule", "cli-top exams"),
-    "calendar": ("Fetched the academic calendar", "cli-top calendar"),
-    "holiday": ("Fetched the holiday list", "cli-top holiday"),
+    "exams": ("Fetched your exam schedule", "VTOP"),
+    "calendar": ("Fetched the academic calendar", "VTOP"),
+    "holiday": ("Fetched the holiday list", "VTOP"),
 }
+
+
+def _plain(err):
+    """VTOP errors for people: the connector's own name stays in the terminal log."""
+    return err.replace("cli-top", "VTOP connector") if err else err
 
 
 def _source_step(src: str, official: dict) -> dict:
     title, cmd = SOURCE_STEPS[src]
     where = official["source"].get(src)
-    err = official["errors"].get(src)
+    err = _plain(official["errors"].get(src))
     lines: list[str] = []
     if src == "exams":
         lines = [f"{e['code']} {e['course']}: {e['exam']} on {_fmt(parse_date(e['date'])) if parse_date(e['date']) else e['date']}"
@@ -293,9 +298,9 @@ def _source_step(src: str, official: dict) -> dict:
         found = f"{len(lines)} holidays"
     if not where:
         detail = (f"VTOP didn't answer ({err[:120]}) and there's no saved copy." if err
-                  else "Not available: no saved copy. Run with “Fetch fresh VTOP data” on a computer with cli-top.")
+                  else "Not available: no saved copy. Run with “Fetch fresh VTOP data” on a computer signed in to VTOP.")
         return {"title": title, "command": cmd, "detail": detail, "lines": [], "tone": "warn"}
-    detail = f"{found}, from {'a demo snapshot of cli-top output' if where == 'demo snapshot' else where}" + (f" in {official['ms'][src] / 1000:.1f} s" if official["ms"].get(src, 0) >= 100 else "")
+    detail = f"{found}, from {'a saved demo copy of VTOP data' if where == 'demo snapshot' else where}" + (f" in {official['ms'][src] / 1000:.1f} s" if official["ms"].get(src, 0) >= 100 else "")
     if err:
         detail += f". Live VTOP didn't answer ({err[:100]}), so the saved copy was used"
     return {"title": title, "command": cmd, "detail": detail + ".", "lines": lines[:12], "tone": "info"}
@@ -321,9 +326,9 @@ def run_campus_check(image_bytes: bytes, live: bool = False) -> dict:
     steps += [f for f in fetched if f["tone"] == "info"]
     missing = [f for f in fetched if f["tone"] != "info"]
     if missing:
-        errs = sorted({official["errors"][s_][:100] for s_ in OFFICIAL_SOURCES if s_ in official["errors"]})
+        errs = sorted({_plain(official["errors"][s_])[:100] for s_ in OFFICIAL_SOURCES if s_ in official["errors"]})
         steps.append({"title": "Not available: " + " and ".join(f["title"].removeprefix("Fetched ").removeprefix("the ").removeprefix("your ") for f in missing),
-                      "command": ", ".join(f["command"] for f in missing),
+                      "command": "VTOP",
                       "detail": (f"VTOP didn't answer ({'; '.join(errs)}) and there's no saved copy. " if errs else "No saved copy on this computer. ")
                       + "Claims that need them are marked as not checked, never as true.",
                       "lines": [], "tone": "warn"})
@@ -365,7 +370,7 @@ def apply_to_result(result: dict, check: dict) -> dict:
         result["verdict"], result["verdict_label"] = ea._band(result["manipulation_score"])
         if result.get("confidence") == "low":  # a date checked by code against official records is solid evidence
             result["confidence"] = "medium"
-        note = "The notice's claims contradict official VTOP records (via cli-top)."
+        note = "The notice's claims contradict official VTOP records."
         if note not in result["rule_notes"]:
             result["rule_notes"].append(note)
     return result

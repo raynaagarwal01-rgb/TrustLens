@@ -43,7 +43,7 @@ def _official_section(r: dict) -> str:
                     + f"<br>{_e(st['detail'])}" + ("<ul>" + "".join(f"<li>{_e(x)}</li>" for x in st.get("lines", [])) + "</ul>" if st.get("lines") else "")
                     + "</li>" for st in oc.get("steps", []))
     steps = f"<h3>How it was checked</h3><ol>{steps}</ol>" if steps else ""
-    return (f"<h2>Official record check (VTOP via cli-top)</h2><p><b>{_e(oc['summary'])}</b></p>"
+    return (f"<h2>Official record check (VTOP)</h2><p><b>{_e(oc['summary'])}</b></p>"
             f"<table><tr><th>Result</th><th>Claim in the image</th><th>Official record</th></tr>{rows}</table>"
             f"{steps}<p class='muted'>Data source: {_e(src)}</p>")
 
