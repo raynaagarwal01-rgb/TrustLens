@@ -1,14 +1,137 @@
 {
-  "dataset_name": "TrustLens-IndianCollegeStudents-Synthetic-v1",
+  "dataset_name": "TrustLens-SyntheticFaces-v2",
   "target_audience": "College students in India (Undergraduates, Engineering, Commerce & Arts)",
   "purpose": "Training and evaluating deepfake/synthetic profile detection models for student digital safety and scam prevention in TrustLens",
-  "num_samples": 7,
+  "num_samples": 13,
   "format": "JPEG",
   "resolution": "1024x1024",
   "color_space": "RGB",
   "label": "fake_ai_generated",
   "label_id": 1,
+  "generator": "FILL IN: which tool generated these images",
+  "note": "All files are AI-generated. student_06/07 were removed as byte-identical duplicates of face_08/face_02.",
   "samples": [
+    {
+      "filename": "face_01.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "young_adult (20-25)",
+        "ethnicity": "caucasian / ambiguous"
+      },
+      "style": "studio_headshot",
+      "lighting": "diffused studio softbox",
+      "expression": "neutral",
+      "synthetic_indicators": [
+        "high skin texture uniformity",
+        "symmetrical catchlight reflections",
+        "smooth synthetic background falloff"
+      ]
+    },
+    {
+      "filename": "face_02.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "young_adult (20-25)",
+        "ethnicity": "south_asian"
+      },
+      "style": "corporate_headshot",
+      "lighting": "three-point studio",
+      "expression": "neutral confident",
+      "synthetic_indicators": [
+        "fine high-frequency hairline boundary",
+        "clean studio bokeh"
+      ]
+    },
+    {
+      "filename": "face_03.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "young_adult (25-30)",
+        "ethnicity": "black / african_descent"
+      },
+      "style": "commercial_portrait",
+      "lighting": "three-point studio with subtle rim",
+      "expression": "calm direct eye contact",
+      "synthetic_indicators": [
+        "synthetic iris fiber geometry",
+        "crisp boundary separation from gradient background"
+      ]
+    },
+    {
+      "filename": "face_04.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "adult (30-35)",
+        "ethnicity": "hispanic / latino"
+      },
+      "style": "studio_headshot",
+      "lighting": "rim light with warm fill",
+      "expression": "neutral",
+      "synthetic_indicators": [
+        "subtle micro-contrast artifacts in peripheral hair",
+        "digital frequency distribution"
+      ]
+    },
+    {
+      "filename": "face_05.jpg",
+      "demographic": {
+        "gender": "male",
+        "age_bracket": "senior (65-70)",
+        "ethnicity": "caucasian"
+      },
+      "style": "distinguished_portrait",
+      "lighting": "soft diffuse portrait lighting",
+      "expression": "gentle neutral",
+      "synthetic_indicators": [
+        "wrinkle mapping continuity",
+        "synthetic ocular reflections"
+      ]
+    },
+    {
+      "filename": "face_06.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "young_adult (25-30)",
+        "ethnicity": "east_asian"
+      },
+      "style": "corporate_headshot",
+      "lighting": "balanced softbox studio",
+      "expression": "soft neutral",
+      "synthetic_indicators": [
+        "flawless skin tone gradients",
+        "subtle depth plane smoothing"
+      ]
+    },
+    {
+      "filename": "face_07.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "adult (30-35)",
+        "ethnicity": "caucasian"
+      },
+      "style": "daylight_portrait",
+      "lighting": "natural diffused daylight",
+      "expression": "subtle smile",
+      "synthetic_indicators": [
+        "natural daylight specular diffusion",
+        "background blur artifact profile"
+      ]
+    },
+    {
+      "filename": "face_08.jpg",
+      "demographic": {
+        "gender": "female",
+        "age_bracket": "young_adult (20-25)",
+        "ethnicity": "south_asian"
+      },
+      "style": "studio_headshot",
+      "lighting": "soft studio",
+      "expression": "neutral professional",
+      "synthetic_indicators": [
+        "specular lighting symmetry across cheekbones",
+        "algorithmic pupil roundness"
+      ]
+    },
     {
       "filename": "student_01.jpg",
       "demographic": {
@@ -93,40 +216,6 @@
       "synthetic_indicators": [
         "Algorithmic pupil roundness and catchlight placement",
         "Fabric fold pattern uniformity"
-      ]
-    },
-    {
-      "filename": "student_06.jpg",
-      "demographic": {
-        "gender": "female",
-        "age": 21,
-        "academic_profile": "Final-year student preparing for campus placements",
-        "region": "India"
-      },
-      "setting": "Studio headshot / college placement profile portrait",
-      "attire": "Smart formal attire, neatly groomed",
-      "expression": "Neutral professional confidence",
-      "scam_risk_context": "Fake job interview / HR recruiter asking for 'security deposit' or training fees",
-      "synthetic_indicators": [
-        "Studio specular lighting symmetry",
-        "Fine digital frequency distribution in hair strands"
-      ]
-    },
-    {
-      "filename": "student_07.jpg",
-      "demographic": {
-        "gender": "male",
-        "age": 21,
-        "academic_profile": "Final-year engineering graduate / campus placement candidate",
-        "region": "India"
-      },
-      "setting": "Clean studio backdrop, campus placement portrait",
-      "attire": "Crisp formal shirt, neat short dark hair",
-      "expression": "Calm, professional direct gaze",
-      "scam_risk_context": "Fake student loan app broker or unaccredited certification course seller",
-      "synthetic_indicators": [
-        "Sharp synthetic boundary separation from background gradient",
-        "Absence of authentic camera sensor noise profile"
       ]
     }
   ]

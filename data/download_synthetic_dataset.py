@@ -21,11 +21,10 @@ FAKE_DIR = BASE_DIR / "fake"
 REAL_DIR = BASE_DIR / "real"
 
 # Curated open URLs for benchmark real face samples (public domain / open license)
-# Tailored for Indian college students and young adults
 SAMPLE_REAL_FACES = [
-    ("https://images.unsplash.com/photo-1618042164219-62c820f10723?w=1024&q=80", "real_indian_student_01.jpg"),
-    ("https://images.unsplash.com/photo-1598387993441-a364f854c3e1?w=1024&q=80", "real_indian_student_02.jpg"),
-    ("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1024&q=80", "real_indian_student_03.jpg"),
+    ("https://images.unsplash.com/photo-1618042164219-62c820f10723?w=1024&q=80", "real_09.jpg"),
+    ("https://images.unsplash.com/photo-1598387993441-a364f854c3e1?w=1024&q=80", "real_10.jpg"),
+    ("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1024&q=80", "real_11.jpg"),
     ("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1024&q=80", "real_01.jpg"),
     ("https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1024&q=80", "real_02.jpg"),
     ("https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=1024&q=80", "real_03.jpg"),

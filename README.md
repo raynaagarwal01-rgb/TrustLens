@@ -31,7 +31,7 @@ image ──► forensics.py ──────────────► signa
 |---|---|
 | 4 real CASIA v2.0 forgeries with ground-truth masks | ELA box found in **4/4**, 62–89% of each box inside the truly edited area (3–14% by chance) |
 | 4 authentic full-size phone photos (iPhone, Nokia, Jolla) | **0/4** false alarms, about 2 s each |
-| 8 real portrait photos (`data/real/`, Unsplash) | **0/8** false alarms |
+| 11 real photos (`data/real/`, Unsplash) | **0/11** false alarms |
 | Small edited thumbnails | ELA raises hints on some untouched images too, so pixel tests are reported as *hints*, never proof |
 
 Small sample sizes: these numbers show the pipeline works on real forgeries, not a benchmark score.
@@ -80,7 +80,7 @@ TrustLens includes a curated dataset of photorealistic AI-generated faces and mo
 | `tests/` | Tests on the real samples |
 | `data/` | Synthetic AI-generated faces, reference real faces, and dataset manifest |
 | `face_analyser.py` | Experimental standalone face analyser (metadata, ELA, FFT). **Not calibrated yet:** its fixed thresholds currently label real web photos as AI-generated too, so it isn't used by the app |
-| `train_face_detector.py` | Training pipeline scaffold (baseline + PyTorch). Needs a large dataset: the 16-image baseline in `models/` (62.5%) is not a meaningful result |
+| `train_face_detector.py` | Training pipeline scaffold (baseline + PyTorch). Needs a large dataset: the small baseline in `models/` (16–26 images) is not a meaningful result |
 
 Earlier prototypes from other tracks (`scam_analyser.py`, `link_checker.py`, `misinfo_analyser.py`, `vtop.py`) remain in the repo but aren't part of the Track 1 app.
 
