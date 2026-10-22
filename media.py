@@ -140,8 +140,9 @@ def make_preview(src: str, out: str, kind: str) -> bool:
     if not exe:
         return False
     if kind == "video":
-        args = ["-t", "300", "-vf", "scale='min(1280,iw)':-2,format=yuv420p", "-c:v", "libx264", "-preset", "veryfast",
-                "-crf", "26", "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-movflags", "+faststart"]
+        args = ["-t", "180", "-vf", "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))',format=yuv420p",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-c:a", "aac", "-b:a", "96k", "-ac", "2",
+                "-movflags", "+faststart"]
     else:
         args = ["-t", "600", "-vn", "-c:a", "libmp3lame", "-b:a", "128k"]
     try:

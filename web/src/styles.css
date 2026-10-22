@@ -597,3 +597,37 @@ p { margin: 0 0 0.6em; max-width: 72ch; }
 .phone img { border: 8px solid #fff; outline: 1px solid var(--rule); image-rendering: pixelated; width: 260px; height: 260px; }
 .phone ol { margin: 0 0 0.6rem; padding-left: 1.2rem; display: grid; gap: 0.4rem; font-size: var(--s-13); }
 @media (max-width: 820px) { .phone { grid-template-columns: 1fr; justify-items: center; } }
+
+/* ------------------------------------------------------------------ phone check page (#/check) */
+.app--check { grid-template-columns: 1fr; }
+.app--check .locker { display: none; }
+.check { max-width: 34rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; display: grid; gap: 1.25rem; }
+.check__brand { display: flex; align-items: baseline; gap: 0.6rem; border-bottom: 3px solid var(--marker); padding-bottom: 0.5rem; }
+.check__brand b { font-size: var(--s-24); font-stretch: 72%; font-variation-settings: "wdth" 72; font-weight: 800; }
+.check__brand span { color: var(--graphite); }
+.check__start { display: grid; gap: 0.9rem; padding-top: 1.5rem; }
+.check__start h1 { font-size: 2.6rem; }
+.check__big { justify-content: center; padding: 1.1rem; font-size: 1.15rem; }
+.check__busy { display: grid; gap: 0.5rem; justify-items: center; text-align: center; padding: 3rem 0; }
+.check__scan { width: 100%; height: 10rem; background: var(--viewer); border-radius: var(--radius-m); position: relative; overflow: hidden; }
+.check__scan span { position: absolute; left: 0; right: 0; height: 3px; background: var(--marker); box-shadow: 0 0 18px var(--marker); animation: check-scan 1.6s ease-in-out infinite alternate; }
+@keyframes check-scan { from { top: 8%; } to { top: 90%; } }
+@media (prefers-reduced-motion: reduce) { .check__scan span { animation: none; top: 50%; } }
+.check__result { display: grid; gap: 1rem; }
+.check__thumb { width: 100%; max-height: 18rem; object-fit: contain; background: var(--viewer); border-radius: var(--radius-m); }
+.check__verdict { border-left: 6px solid var(--rule); padding: 0.4rem 0 0.4rem 0.9rem; }
+.check__verdict h1 { font-size: 2.4rem; }
+.check__result--bad .check__verdict { border-color: var(--manipulated); }
+.check__result--bad .check__verdict h1 { color: var(--manipulated); }
+.check__result--warn .check__verdict { border-color: var(--caution); }
+.check__result--warn .check__verdict h1 { color: var(--caution); }
+.check__result--good .check__verdict { border-color: var(--clear); }
+.check__result--good .check__verdict h1 { color: var(--clear); }
+.check__score { margin: 0.3rem 0 0; color: var(--graphite); font-size: var(--s-13); }
+.check__summary { display: grid; gap: 0.6rem; background: var(--sheet); padding: 0.9rem 1rem; border-radius: var(--radius-s); }
+.check__summary .seg { justify-self: start; }
+.check__summary ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.4rem; }
+.check__summary ol[lang="hi"] { font-family: "Noto Sans Devanagari", "Nirmala UI", var(--font); }
+.check__why ul { margin: 0.4rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; font-size: var(--s-13); }
+.check__actions { display: grid; gap: 0.5rem; }
+.check__actions .btn { justify-content: center; padding: 0.8rem; font-size: var(--s-15); }

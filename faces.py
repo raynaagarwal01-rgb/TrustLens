@@ -65,14 +65,14 @@ def available() -> bool:
     return _detector() is not None
 
 
-def detect(img: Image.Image) -> list[list[int]]:
+def detect(img: Image.Image, max_side: int = 1024) -> list[list[int]]:
     """Face boxes [x0, y0, x1, y1] in image pixels, largest first."""
     casc = _detector()
     if casc is None:
         return []
     gray = np.asarray(img.convert("L"))
     h, w = gray.shape
-    s = min(1.0, 1024 / max(w, h))
+    s = min(1.0, max_side / max(w, h))
     small = cv2.resize(gray, (max(1, int(w * s)), max(1, int(h * s)))) if s < 1 else gray
     small = cv2.equalizeHist(small)
     min_side = max(24, int(0.05 * min(small.shape)))

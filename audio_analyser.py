@@ -46,14 +46,14 @@ JUMP_DB = 12.0          # background level change between neighbouring pauses
 MAX_SECONDS = 600
 
 
-def decode(path: str, info: dict | None = None) -> tuple[np.ndarray, int]:
+def decode(path: str, info: dict | None = None, max_seconds: int = MAX_SECONDS) -> tuple[np.ndarray, int]:
     """Mono float32 samples at the file's own sample rate."""
     info = info or media.probe(path)
     astream = next((s for s in info.get("streams", []) if s["type"] == "audio"), None)
     sr = int(astream.get("sample_rate", 16000)) if astream else 16000
     exe = media.ffmpeg_path()
     if exe:
-        out = subprocess.run([exe, "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", str(sr), "-t", str(MAX_SECONDS),
+        out = subprocess.run([exe, "-v", "error", "-i", path, "-vn", "-ac", "1", "-ar", str(sr), "-t", str(max_seconds),
                               "-f", "f32le", "-acodec", "pcm_f32le", "-"], capture_output=True, timeout=120)
         if out.returncode == 0 and out.stdout:
             return np.frombuffer(out.stdout, np.float32).copy(), sr
@@ -89,16 +89,13 @@ def speech_mask(rms: np.ndarray) -> tuple[np.ndarray, float]:
 def digital_silence(x: np.ndarray, sr: int) -> list[dict]:
     """Runs of (near-)exact zero longer than SILENCE_MIN, away from the start and end."""
     quiet = np.abs(x) < SILENCE_LEVEL
-    runs, start = [], None
+    if not quiet.any():
+        return []
+    edges = np.diff(np.concatenate(([0], quiet.view(np.int8), [0])))
+    starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
     edge = int(0.15 * sr)
-    for i, q in enumerate(np.append(quiet, False)):
-        if q and start is None:
-            start = i
-        elif not q and start is not None:
-            if (i - start) / sr >= SILENCE_MIN and start > edge and i < len(x) - edge:
-                runs.append({"start": round(start / sr, 2), "end": round(i / sr, 2)})
-            start = None
-    return runs
+    keep = ((ends - starts) / sr >= SILENCE_MIN) & (starts > edge) & (ends < len(x) - edge)
+    return [{"start": round(float(a) / sr, 2), "end": round(float(b) / sr, 2)} for a, b in zip(starts[keep], ends[keep])]
 
 
 def background_jumps(rms: np.ndarray, speech: np.ndarray) -> list[dict]:
@@ -125,10 +122,10 @@ def bandwidth(x: np.ndarray, sr: int) -> dict:
     n = 2048
     if len(x) < n * 4:
         return {}
-    hop = n // 2
+    hop = max(n // 2, (len(x) - n) // 400)  # at most ~400 frames: a long clip doesn't need more
     k = (len(x) - n) // hop
     idx = np.arange(n)[None, :] + hop * np.arange(k)[:, None]
-    frames = x[idx] * np.hanning(n)
+    frames = x[idx].astype(np.float32) * np.hanning(n).astype(np.float32)
     power = (np.abs(np.fft.rfft(frames, axis=1)) ** 2)
     loud = frames.std(axis=1) > np.percentile(frames.std(axis=1), 50)
     spec = power[loud].mean(axis=0) + 1e-20
@@ -280,7 +277,7 @@ def marks_for(m: dict, duration: float, width: int = 1600, height: int = 420) ->
 def analyse_track(path: str, use_llm: bool = True) -> dict:
     """Audio part of a video: measurements, hints and (with AI) transcript + scam check."""
     info = media.probe(path)
-    x, sr = decode(path, info)
+    x, sr = decode(path, info, max_seconds=180)  # a video's soundtrack: the first 3 minutes
     m = measure(x, sr)
     out = {"status": "ok", "measurements": m, "hints": hints(m)}
     if use_llm and m["speech_share"] > 0.05:

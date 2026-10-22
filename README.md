@@ -17,7 +17,7 @@ Your browser opens at `http://127.0.0.1:8000`, and the terminal prints whether t
 
 **Keep the AI review on.** Forensic tests only catch edits that leave technical traces. AI-generated images without credentials, deepfake videos and clean edits are usually only visible to the vision model. Without a key, a result with no traces reads "Not enough evidence: AI review was off", never "no evidence".
 
-Cases analysed before you added the key show a **Re-analyse with AI review** button. Press **Play the 90-second demo** on the home screen for a guided tour of six prepared cases (photo edit, AI image, dataset splice, deepfake video, edited voice note, fake receipt).
+Cases analysed before you added the key show a **Re-analyse with AI review** button. **Phone:** start with `python server.py --lan`, click **Use on your phone** and scan the QR code: the phone opens a simple Check page (the link carries a secret code, so others on the Wi-Fi can't use it). **Before a demo:** `python tools/prepare_demo.py` analyses every sample with the AI review, writes an accuracy table and signed PDFs to `demo_backup/`. Press **Play the 90-second demo** on the home screen for a guided tour of six prepared cases (photo edit, AI image, dataset splice, deepfake video, edited voice note, fake receipt).
 
 Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DETECTOR_MODEL=<huggingface id>` with `transformers` adds a pretrained classifier. The earlier Streamlit interface still works: `streamlit run app.py`. **Editing the interface:** `cd web && npm install && npm run build`. Design notes: [web/DESIGN.md](web/DESIGN.md).
 

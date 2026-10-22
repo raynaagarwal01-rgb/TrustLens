@@ -27,7 +27,7 @@ export function PhoneDialog({ onClose }: { onClose: () => void }) {
               <ol>
                 <li>Connect the phone to the same Wi-Fi as this computer, or to this computer's hotspot.</li>
                 <li>Scan the code with the phone camera.</li>
-                <li>Upload a photo, video or voice note from the phone: it is analysed here and appears in this locker too.</li>
+                <li>The phone opens a simple “Check a file” page: pick a photo, video or voice note and the verdict appears on the phone (and in this locker).</li>
               </ol>
               <p className="muted" style={{ fontSize: 12 }}>The link carries a secret code, so only people who scan it can use TrustLens.
                 Address: <span className="mono">{info.ip}:{info.port}</span></p>

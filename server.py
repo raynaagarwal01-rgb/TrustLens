@@ -50,7 +50,7 @@ ROOT = Path(__file__).resolve().parent
 CASES = Path(os.getenv("TRUSTLENS_CASES", ROOT / "cases"))
 SAMPLES = ROOT / "samples"
 WEB = ROOT / "web" / "dist"
-MAX_UPLOAD = 100 * 1024 * 1024
+MAX_UPLOAD = 300 * 1024 * 1024  # phone 4K clips; only 12 frames are read, so size costs upload time only
 MEDIA_TYPES = tuple(media.IMAGE_EXT | media.VIDEO_EXT | media.AUDIO_EXT)
 STORED_KINDS = ("video", "audio")   # their analysis images are saved, not re-created
 
@@ -175,7 +175,8 @@ def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
         images["ground_truth"] = Image.open(gt).convert("L")
     _store_images(d, images)
     if result.get("media_kind") in STORED_KINDS:
-        _preview(d, result["media_kind"])
+        # the playable copy takes seconds to minutes: make it in the background, the result shouldn't wait
+        threading.Thread(target=_preview, args=(d, result["media_kind"]), daemon=True).start()
     meta = {"id": cid, "sha256": sha, "name": safe, "source": source, "created": time.time(), "use_llm": use_llm,
             "media_kind": result.get("media_kind", "image")}
     result["case"] = meta
@@ -381,7 +382,7 @@ async def create_case(request: Request):
             return err("That sample doesn't exist.", 404)
         data, source = p.read_bytes(), "sample"
     if len(data) > MAX_UPLOAD:
-        return err("That file is larger than 100 MB.", 413)
+        return err("That file is larger than 300 MB. Trim the video, or send it through WhatsApp first (it compresses it).", 413)
     if reuse:  # demo mode: open the existing analysis instead of running it again
         try:
             entry = load_case(case_id(hashlib.sha256(data).hexdigest()))
@@ -805,7 +806,7 @@ def lan_ip() -> str:
 
 
 def phone_url() -> str:
-    return f"http://{lan_ip()}:{LAN['port']}/?k={LAN['token']}"
+    return f"http://{lan_ip()}:{LAN['port']}/?k={LAN['token']}#/check"
 
 
 class PhoneAccess:

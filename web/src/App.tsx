@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ACCEPT, api, isMedia, type BatchSummary, type CaseResult, type CaseSummary, type Layers, type Sample,
          type Status } from "./api";
 import { BatchView } from "./Batch";
+import { CheckView } from "./Check";
 import { DEMO_STEPS, DemoBar, STEP_SECONDS } from "./Demo";
 import { Details } from "./Details";
 import { Locker } from "./Locker";
@@ -19,7 +20,7 @@ const TRY_LABEL: Record<string, string> = {
   "Screenshot_payment_demo.png": "Fake payment receipt", "Forged_notice_demo.jpg": "Forged exam notice",
 };
 
-type Route = { kind: "home" } | { kind: "case"; id: string } | { kind: "batch"; id: string } | { kind: "verify" };
+type Route = { kind: "home" } | { kind: "case"; id: string } | { kind: "batch"; id: string } | { kind: "verify" } | { kind: "check" };
 
 const routeFromHash = (): Route => {
   const h = location.hash;
@@ -28,6 +29,7 @@ const routeFromHash = (): Route => {
   m = h.match(/^#\/batch\/([0-9a-f]{12})$/);
   if (m) return { kind: "batch", id: m[1] };
   if (h === "#/verify") return { kind: "verify" };
+  if (h === "#/check") return { kind: "check" };
   return { kind: "home" };
 };
 
@@ -207,7 +209,7 @@ export function App() {
   const mediaKind = result?.media_kind ?? "image";
 
   return (
-    <div className={`app${demo ? " app--demo" : ""}`} onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+    <div className={`app${demo ? " app--demo" : ""}${route.kind === "check" ? " app--check" : ""}`} onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
          onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
       <Locker open={lockerOpen} status={status} cases={cases} batches={batchList} samples={samples} currentId={result?.case.id ?? null}
               ai={ai} onAi={setAi} onFiles={openFiles} onSample={openSample} onCase={(id) => loadCase(id)}
@@ -216,6 +218,7 @@ export function App() {
               onPhone={() => { setLockerOpen(false); setPhoneOpen(true); }} onClose={() => setLockerOpen(false)} />
       <main className="main" id="main">
         {route.kind === "batch" && <BatchView id={route.id} onOpen={(id) => loadCase(id)} onMenu={() => setLockerOpen(true)} />}
+        {route.kind === "check" && <CheckView ai={ai && aiOn} onOpen={(id) => loadCase(id)} />}
         {route.kind === "verify" && <VerifyView onMenu={() => setLockerOpen(true)} onOpen={(id) => loadCase(id)} />}
         {caseView && (
           <>

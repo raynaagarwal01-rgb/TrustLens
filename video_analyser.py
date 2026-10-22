@@ -100,7 +100,60 @@ Respond with ONLY a JSON object matching this schema:
 """
 
 
-def _read_frames(path: str):
+MAX_SIDE = 1280  # frames are analysed at most this big: phone 4K adds time, not evidence
+
+
+def _ffmpeg_frames(path: str, info: dict):
+    """Two consecutive frames at 12 moments, via ffmpeg's fast keyframe seek (OpenCV seeking decodes
+    everything in between: 10 s for a 1-minute phone clip). ffmpeg also applies the phone's rotation."""
+    import subprocess
+    exe = media.ffmpeg_path()
+    dur = float(info.get("duration") or 0)
+    vs = next((x for x in info.get("streams", []) if x["type"] == "video"), {})
+    fps = float(vs.get("fps") or 0) or 25.0
+    if not exe or dur <= 0:
+        return None
+    times = [round(float(x), 3) for x in np.linspace(dur * 0.03, max(0.0, dur * 0.97 - 2 / fps), N_FRAMES)]
+    scale = f"scale='if(gt(iw,ih),min({MAX_SIDE},iw),-2)':'if(gt(iw,ih),-2,min({MAX_SIDE},ih))'"
+    def grab(t):
+        r = subprocess.run([exe, "-v", "error", "-threads", "2", "-ss", str(t), "-i", path, "-frames:v", "2", "-vf", scale,
+                            "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True, timeout=60)
+        return t, _split_pngs(r.stdout)
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        grabbed = list(pool.map(grab, times))
+    frames = []
+    for t, imgs in grabbed:
+        if not imgs:
+            continue
+        frames.append({"index": int(round(t * fps)), "t": round(t, 2), "image": imgs[0],
+                       "next": imgs[1] if len(imgs) > 1 else None})
+    if not frames:
+        return None
+    return frames, int(round(dur * fps)), fps
+
+
+def _split_pngs(blob: bytes) -> list:
+    out, sig = [], b"\x89PNG\r\n\x1a\n"
+    starts, i = [], blob.find(sig) if blob else -1
+    while i >= 0:
+        starts.append(i)
+        i = blob.find(sig, i + 8)
+    for a, b in zip(starts, starts[1:] + [len(blob)]):
+        try:
+            im = Image.open(io.BytesIO(blob[a:b]))
+            im.load()
+            out.append(im.convert("RGB"))
+        except Exception:
+            continue
+    return out
+
+
+def _read_frames(path: str, info: dict | None = None):
+    got = _ffmpeg_frames(path, info or {})
+    if got:
+        return got
     cap = cv2.VideoCapture(path)
     if not cap.isOpened():
         raise ValueError("TrustLens couldn't read that video. Try an MP4, MOV, WebM or GIF file.")
@@ -125,6 +178,10 @@ def _read_frames(path: str):
             continue
         rgb = Image.fromarray(cv2.cvtColor(a, cv2.COLOR_BGR2RGB))
         nxt = Image.fromarray(cv2.cvtColor(b, cv2.COLOR_BGR2RGB)) if ok2 else None
+        if max(rgb.size) > MAX_SIDE:
+            rgb.thumbnail((MAX_SIDE, MAX_SIDE))
+            if nxt is not None:
+                nxt.thumbnail((MAX_SIDE, MAX_SIDE))
         frames.append({"index": i, "t": round(i / fps, 2), "image": rgb, "next": nxt})
     cap.release()
     if not frames:
@@ -220,10 +277,10 @@ def analyse_video(data: bytes, filename: str = "video", use_llm: bool = True) ->
 def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
     import hashlib
     info = media.probe(path)
-    frames, n_total, fps = _read_frames(path)
+    frames, n_total, fps = _read_frames(path, info)
     for i, f in enumerate(frames):
         f["label"] = f"F{i + 1}"
-        boxes = faces.detect(f["image"]) if faces.available() else []
+        boxes = faces.detect(f["image"], max_side=720) if faces.available() else []
         f["faces"] = boxes
         f["flicker"] = _flicker(f["image"], f["next"], boxes[0] if boxes else None)
         small = f["image"].copy()
