@@ -239,6 +239,17 @@ def save_result(cid: str, result: dict):
     (_case_dir(cid) / "result.json").write_text(json.dumps(result, default=_json_default), encoding="utf-8")
 
 
+def _crash(e: Exception, doing: str):
+    """Unexpected error: print the full traceback in the terminal and show the cause on the page."""
+    import traceback
+    print(f"\n--- TrustLens error while {doing} ---", flush=True)
+    traceback.print_exc()
+    where = traceback.extract_tb(e.__traceback__)[-1] if e.__traceback__ else None
+    loc = f" ({Path(where.filename).name}, line {where.lineno})" if where else ""
+    return err(f"TrustLens hit an error while {doing}: {type(e).__name__}: {str(e)[:220]}{loc}. "
+               "The full details are in the terminal.", 500)
+
+
 def _llm_needed(entry, what: str):
     if not envfile.ai_review_status()[0]:
         return err(f"{what} needs the AI review. Add your API key to the .env file and restart TrustLens.", 409)
@@ -377,6 +388,8 @@ async def create_case(request: Request):
         result = await run_in_threadpool(save_case, data, name, use_llm, source)
     except ValueError as e:
         return err(str(e), 422)
+    except Exception as e:
+        return _crash(e, f"analysing {name}")
     return ok(_public(result), 201)
 
 
@@ -395,6 +408,8 @@ async def reanalyse_case(request: Request):
         result = await run_in_threadpool(save_case, entry["data"], meta["name"], use_llm, meta.get("source", "upload"))
     except ValueError as e:
         return err(str(e), 422)
+    except Exception as e:
+        return _crash(e, f"re-analysing {meta['name']}")
     return ok(_public(result))
 
 
