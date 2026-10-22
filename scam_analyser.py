@@ -13,8 +13,9 @@ Usage in Streamlit:
 """
 
 import json
-import os
 import re
+
+from llm import call_llm, parse_json
 
 try:
     from link_checker import check_urls
@@ -173,43 +174,6 @@ def extract_urls(message: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# 4. LLM CALL — pick ONE provider via env var LLM_PROVIDER = "gemini" | "groq"
-#    Set LLM_MODEL to whatever current model your key supports.
-# ---------------------------------------------------------------------------
-
-def call_llm(system: str, user: str) -> str:
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
-
-    if provider == "gemini":
-        from google import genai  # pip install google-genai
-        from google.genai import types
-        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-        resp = client.models.generate_content(
-            model=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
-            contents=user,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                response_mime_type="application/json",
-                temperature=0.2,
-            ),
-        )
-        return resp.text
-
-    if provider == "groq":
-        from groq import Groq  # pip install groq
-        client = Groq(api_key=os.environ["GROQ_API_KEY"])
-        resp = client.chat.completions.create(
-            model=os.environ["LLM_MODEL"],
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-        )
-        return resp.choices[0].message.content
-
-    raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
-
-
-# ---------------------------------------------------------------------------
 # 5. VALIDATION + COMBINING — the UI always gets a well-formed dict
 # ---------------------------------------------------------------------------
 
@@ -218,7 +182,7 @@ def _verdict_for(score: int) -> str:
 
 
 def validate(raw: str | dict, message: str) -> dict:
-    data = raw if isinstance(raw, dict) else json.loads(re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.M))
+    data = parse_json(raw)
 
     score = int(max(0, min(100, int(data.get("risk_score", 50)))))
     flags = []

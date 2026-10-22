@@ -1,72 +1,67 @@
 # TrustLens
 
-An AI digital-safety copilot for students. Paste a suspicious message, link or image, and TrustLens tells you whether it's a scam, fake or malicious, explains why in plain language, and teaches you to spot it next time.
+A misinformation detector for university students. TrustLens checks news, social posts and WhatsApp forwards, and verifies **campus rumours against official college records from VTOP** (via [cli-top](https://cli-top.acmvit.in)), so "CAT-2 is postponed, forward to all!" gets checked against the actual announcements and exam schedule.
 
-Built solo in 24 hours for a hackathon.
+Built solo in 24 hours for a hackathon (Track 3: AI-Powered Misinformation and Fake News Detection).
 
 ## Features
 
 | Module | Status |
 |---|---|
-| Scam message analyser (SMS, WhatsApp, job offers) | ✅ Done |
-| Link / phishing checker | ✅ Done |
-| Image evidence analysis (hash, metadata, error-level analysis) | 🔜 Planned |
-| Learn mode (micro-lessons and quizzes from each detection) | 🔜 Planned |
+| Misinformation analyser (`misinfo_analyser.py`) | ✅ Done |
+| Campus rumour check against official records | ✅ Done (analyser side); VTOP wrapper next |
+| Source and link credibility (`link_checker.py`) | ✅ Done |
+| cli-top / VTOP wrapper | 🔜 Next |
+| Daily verified news briefing for your courses | 🔜 Planned |
+| Attendance alerts and study timetable | 🔜 Planned |
+| Scam message analyser (`scam_analyser.py`) | ✅ Done (from the earlier scam-detection idea) |
 
-## How the scam analyser works
+## How the misinformation analyser works
 
-1. **Rule layer**: instant regex checks for OTP requests, fees, UPI IDs, shortened links, urgency and secrecy. Works offline.
-2. **LLM analysis**: the message and rule signals go to an LLM that returns structured JSON: verdict, risk score, scam type, red flags with quoted evidence, psychological tactics, explanation and next steps.
-3. **Validation**: the response is cleaned and checked, and hard rule hits set a minimum score so a real scam can't be scored as safe.
-4. **Fallback**: if the API is down, a rules-only verdict is returned instead of an error.
+```python
+from misinfo_analyser import verify
 
-The message is treated as untrusted input, so text like "this message is verified safe" is flagged rather than obeyed.
+verify("Breaking!! CAT-2 postponed, forward to all", official_context=vtop_records)
+verify(article_text, url="https://example.com/story")
+```
+
+1. **Language signals** (offline): forward-chain pressure, vague sourcing ("my senior told me"), false certainty, sensational wording, deletion urgency.
+2. **Source credibility**: reputable-outlet and fact-checker allowlists, plus the link checker for look-alike and scam domains.
+3. **Claim extraction**: the LLM pulls out checkable claims and search queries (heuristic fallback if it fails).
+4. **Corroboration**: Google News RSS (no key needed) and the Google Fact Check Tools API (optional).
+5. **Verdict**: `true`, `likely_true`, `unverified`, `misleading` or `false`, with per-claim evidence, a comparison against official records, manipulation tactics and next steps.
+6. **Hard rules the LLM can't override**: a published fact-check rating the claim false, or an official record that contradicts it, always caps the score. With no matching official record, a campus rumour can't be rated above "unverified."
+
+**Robust by design:** all input and search results are treated as untrusted (defending against prompt injection hidden in articles), LLM output is validated, and if the API fails an offline check still returns a cautious result instead of crashing. Offline results never claim "true" or "false" outright, since nothing was fact-checked.
 
 ## How the link checker works
 
-Every link found in a message is checked automatically, and its findings feed into the verdict. You can also check a link on its own with `check_url()`.
+**Offline checks:** brand impersonation (`sbi-kyc-update.xyz`), look-alike domains (`amaz0n.in`), raw IPs, punycode, the `@` trick, risky domain endings, phishing keywords, shorteners.
 
-**Offline checks** (instant, no keys needed): brand impersonation (`sbi-kyc-update.xyz`), look-alike domains (`amaz0n.in`, `g00gle.com`), raw IP addresses, punycode, the `@` trick, risky domain endings, phishing keywords, missing HTTPS and link shorteners.
-
-**Online checks** (optional, each fails gracefully, successful results cached in `.trustlens_cache.json`):
-
-| Check | Needs |
-|---|---|
-| Domain age via RDAP | nothing |
-| Short-link expansion | nothing |
-| Google Safe Browsing | `GSB_API_KEY` |
-| VirusTotal | `VT_API_KEY` |
-
-Run the demo links with `python link_checker.py`, or `TRUSTLENS_OFFLINE=1 python link_checker.py` for offline only.
+**Online checks** (optional, cached in `.trustlens_cache.json`): domain age via RDAP, short-link expansion, Google Safe Browsing (`GSB_API_KEY`), VirusTotal (`VT_API_KEY`).
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
 
-# Gemini (default)
+# LLM: Gemini (default) or Groq
 export GEMINI_API_KEY=your_key
+# export LLM_PROVIDER=groq GROQ_API_KEY=your_key LLM_MODEL=model_name
 
-# or Groq
-export LLM_PROVIDER=groq
-export GROQ_API_KEY=your_key
-export LLM_MODEL=model_name
+# optional
+export FACTCHECK_API_KEY=your_key   # Google Fact Check Tools
+export GSB_API_KEY=your_key         # Google Safe Browsing
+export VT_API_KEY=your_key          # VirusTotal
 
-python scam_analyser.py   # runs the built-in demo messages
-
-# optional, for the link checker
-export GSB_API_KEY=your_key
-export VT_API_KEY=your_key
+python misinfo_analyser.py   # runs the demo cases
 ```
 
-Use it in code:
+## Privacy
 
-```python
-from scam_analyser import analyse
-result = analyse("Pay a registration fee of ₹1,499 to confirm your internship...")
-print(result["verdict"], result["risk_score"])
-```
+VTOP credentials stay in cli-top's encrypted local store. TrustLens only passes the specific official records relevant to a claim (announcements, calendar, exam dates) to the LLM, never passwords or full academic records.
 
-## Report a scam
+## Report misinformation and fraud
 
-If you've been targeted, report it at [cybercrime.gov.in](https://cybercrime.gov.in) or call **1930**.
+- Suspected fraud calls or messages: Chakshu on [sancharsaathi.gov.in](https://sancharsaathi.gov.in)
+- If you've lost money: call **1930** or report at [cybercrime.gov.in](https://cybercrime.gov.in)
