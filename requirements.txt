@@ -1,4 +1,6 @@
-google-genai
-groq
-requests
+pillow
+numpy
 streamlit
+google-genai
+requests
+# optional: groq, transformers, torch

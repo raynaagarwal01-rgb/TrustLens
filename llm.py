@@ -2,24 +2,29 @@
 llm.py — one place for LLM calls, shared by every analyser.
 
 Pick a provider with env var LLM_PROVIDER = "gemini" (default) | "groq".
-Set LLM_MODEL to whatever current model your key supports.
+Set LLM_MODEL to whatever current model your key supports (for images, a vision model).
 """
 
+import base64
 import json
 import os
 import re
 
 
-def call_llm(system: str, user: str, temperature: float = 0.2) -> str:
+def call_llm(system: str, user: str, temperature: float = 0.2,
+             images: list[tuple[bytes, str]] | None = None) -> str:
+    """images: optional list of (bytes, mime_type), sent before the text."""
     provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    images = images or []
 
     if provider == "gemini":
         from google import genai  # pip install google-genai
         from google.genai import types
         client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        parts = [types.Part.from_bytes(data=b, mime_type=m) for b, m in images] + [user]
         resp = client.models.generate_content(
             model=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
-            contents=user,
+            contents=parts,
             config=types.GenerateContentConfig(
                 system_instruction=system,
                 response_mime_type="application/json",
@@ -31,9 +36,15 @@ def call_llm(system: str, user: str, temperature: float = 0.2) -> str:
     if provider == "groq":
         from groq import Groq  # pip install groq
         client = Groq(api_key=os.environ["GROQ_API_KEY"])
+        if images:
+            content = [{"type": "image_url", "image_url": {
+                "url": f"data:{m};base64,{base64.b64encode(b).decode()}"}} for b, m in images]
+            content.append({"type": "text", "text": user})
+        else:
+            content = user
         resp = client.chat.completions.create(
             model=os.environ["LLM_MODEL"],
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": content}],
             response_format={"type": "json_object"},
             temperature=temperature,
         )
