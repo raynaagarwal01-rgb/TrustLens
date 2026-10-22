@@ -294,7 +294,7 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
         if with_face else frames[len(frames) // 2]
 
     # every image test on the key frame (no AI here: the video gets its own review below)
-    base = ea.analyse(_png(key["image"]), f"{Path(filename).stem}_{key['label']}.png", use_llm=False)
+    base = ea.analyse(_png(key["image"]), f"{Path(filename).stem}_{key['label']}.png", use_llm=False, face_model=False)
     images = base.pop("images")
 
     c2 = forensics.read_c2pa(data)
@@ -336,6 +336,10 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
 
     motion = _outside_motion(frames)
 
+    # the DFDC-winning face-swap detector runs on every frame with a face, alongside the AI review
+    import face_swap
+    swap_job = face_swap.start_frames(frames)
+
     # sheet for the vision model: 6 frames spread across the clip
     pick = [frames[int(round(x))] for x in np.linspace(0, len(frames) - 1, min(SHEET_FRAMES, len(frames)))]
     sheet = contact_sheet(pick)
@@ -364,6 +368,7 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
         except Exception as e:
             error = f"{type(e).__name__}: {str(e)[:200]}"
 
+    swap = face_swap.finish(swap_job)
     sheet_labels = {f["label"]: f for f in pick}
     if llm:
         score = max(0, min(100, int(llm.get("manipulation_score", 50))))
@@ -394,6 +399,14 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
         explanation = "AI visual review didn't run, so this result uses metadata and frame tests only."
         limitations, actions = [], []
 
+    if swap:
+        sig, note, swap_floor = face_swap.verdict_inputs(swap, video=True)
+        signals.insert(0, sig)
+        if note:
+            rule_notes.append(note)
+            if swap_floor > floor:
+                floor = swap_floor
+            forced = forced or "face_swap_or_deepfake"
     score = max(score, floor)
     if forced and (ftype in ("none", "unknown") or forced == "ai_generated"):
         ftype = forced
@@ -411,7 +424,9 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
                        "video usually leave no such trace; the AI visual review is what looks at the faces and "
                        "motion. Turn it on and open the video again.")
     elif not llm and rule_notes:
-        explanation = "AI visual review didn't run, but the file itself declares how it was made (below)."
+        explanation = ("AI visual review didn't run, but the face-swap detector found direct evidence (below)."
+                       if swap and swap.get("fake_frames") and not tools and not c2 else
+                       "AI visual review didn't run, but the file itself declares how it was made (below).")
 
     sha = hashlib.sha256(data).hexdigest()
     vstream = next((s for s in info.get("streams", []) if s["type"] == "video"), {})
@@ -421,7 +436,7 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
         images[f"frame_{f['label'].lower()}"] = f["image"]
         timeline.append({"label": f["label"], "t": f["t"], "index": f["index"], "faces": f["faces"],
                          "flicker": f["flicker"], "ela_max_z": f["ela_max_z"],
-                         "ai_score": f.get("ai_score"), "ai_note": f.get("ai_note", ""),
+                         "ai_score": f.get("ai_score"), "ai_note": f.get("ai_note", ""), "swap": f.get("swap"),
                          "on_sheet": f["label"] in sheet_labels, "key": f is key})
     images["sheet"] = sheet
     for i, c in enumerate(closeups):
@@ -464,6 +479,7 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
                   "frames_total": n_total, "codec": vstream.get("codec", ""), "container": info.get("container", ""),
                   "tags": tags, "ai_tools_named": tools, "timeline": timeline, "key_frame": key["label"],
                   "face_findings": face_notes, "audio": audio, "outside_motion": motion},
+        "face_swap": swap,
         "images": images,
         "llm_used": bool(llm), "error": error,
     }

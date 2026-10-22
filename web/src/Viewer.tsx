@@ -45,6 +45,8 @@ function Timeline({ id, frames, selected, onSelect, duration }: {
         <button key={f.label} role="option" aria-selected={selected === f.label} className={`timeline__frame${f.key ? " is-key" : ""}`}
                 onClick={() => onSelect(f.label)} title={`${f.key ? "Key frame (largest face): analysis layers use this one. " : ""}${f.ai_note || `${f.label} at ${f.t}s`}`}>
           <img src={api.image(id, frameKind(f), 240)} alt="" loading="lazy" />
+          {f.swap != null && <span className={`timeline__swap timeline__swap--${f.swap > 0.8 ? "bad" : f.swap >= 0.5 ? "warn" : "good"}`}
+                                   title="Face-swap detector: probability this face is swapped">{Math.min(99, Math.round(f.swap * 100))}%</span>}
           <span className="timeline__meta">
             <b>{f.label}</b><span>{f.t.toFixed(1)}s</span>
           </span>

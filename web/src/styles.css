@@ -664,3 +664,31 @@ p { margin: 0 0 0.6em; max-width: 72ch; }
 .trace--compact .trace__step { padding: 0.4rem 0; }
 @keyframes trace-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .trace__step { animation: none; } }
+
+/* ------------------------------------------------------------------ face-swap detector */
+.timeline__frame { position: relative; }
+.timeline__swap { position: absolute; top: 3px; right: 3px; font-size: 10px; font-weight: 700; line-height: 1; padding: 2px 3px;
+  border-radius: 2px; color: #fff; font-variant-numeric: tabular-nums; }
+.timeline__swap--bad { background: #b3312a; }
+.timeline__swap--warn { background: #9a6410; }
+.timeline__swap--good { background: #1d6e52; }
+.swap { border: 1px solid var(--rule); border-left-width: 4px; border-radius: var(--radius-m); padding: 0.9rem 1rem; margin-bottom: 1rem; background: var(--sheet); }
+.swap--bad { border-left-color: var(--manipulated); }
+.swap--warn { border-left-color: var(--caution); }
+.swap--good, .swap--off { border-left-color: var(--rule); }
+.swap h3 { margin: 0; font-size: var(--s-15); }
+.swap .muted { margin: 0.15rem 0 0; font-size: var(--s-13); }
+.swap__head { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; }
+.swap__score { margin: 0; text-align: right; display: grid; line-height: 1.1; white-space: nowrap; }
+.swap__score b { font-size: var(--s-32); font-variant-numeric: tabular-nums; }
+.swap--bad .swap__score b { color: var(--manipulated); }
+.swap--warn .swap__score b { color: var(--caution); }
+.swap--good .swap__score b { color: var(--clear); }
+.swap__score span { font-size: var(--s-12); color: var(--graphite); }
+.swap__bars { display: flex; gap: 6px; align-items: flex-end; height: 72px; margin: 0.75rem 0 0.25rem; }
+.swap__bar { flex: 1; height: 100%; display: grid; grid-template-rows: 1fr auto; text-align: center; }
+.swap__bar i { align-self: end; display: block; border-radius: 2px 2px 0 0; background: var(--clear); }
+.swap__bar i.bad { background: var(--manipulated); }
+.swap__bar i.warn { background: var(--caution); }
+.swap__bar small { font-size: 10px; color: var(--graphite); padding-top: 2px; }
+.swap__note { margin: 0.5rem 0 0; font-size: var(--s-13); color: var(--graphite); }

@@ -259,7 +259,7 @@ def _clean_findings(items) -> list[dict]:
     return out[:8]
 
 
-def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict:
+def analyse(data: bytes, filename: str = "upload", use_llm: bool = True, face_model: bool = True) -> dict:
     fx = forensics.analyse_image(data, filename)
     try:
         raw = Image.open(io.BytesIO(data)).convert("RGB")
@@ -279,6 +279,9 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
     fx["faces"] = face_stats
     det = run_detector(fx["images"]["original"])
     floor, forced_type, rule_notes = hard_rules(fx, det)
+    import face_swap  # the DFDC-winning face-swap detector, in parallel with the AI review
+    swap_job = face_swap.start_image(fx["images"]["original"], faces.detect(fx["images"]["original"])) \
+        if face_model and faces.available() else None
 
     llm, error = None, None
     if use_llm:
@@ -309,6 +312,14 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
                        "pixel-level tests only.")
         limitations, actions, heatmap_reading, image_kind = [], [], "", ""
 
+    swap = face_swap.finish(swap_job)
+    if swap:
+        sig, note, swap_floor = face_swap.verdict_inputs(swap, video=False)
+        fx["signals"].insert(0, sig)
+        if note:
+            rule_notes.append(note)
+            floor = max(floor, swap_floor)
+            forced_type = forced_type or "face_swap_or_deepfake"
     if score < floor:
         score = floor
     if forced_type and (ftype in ("none", "unknown") or forced_type == "ai_generated"):
@@ -371,6 +382,7 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
         "noise": fx["noise"],
         "images": fx["images"],
         "faces": face_stats,
+        "face_swap": swap,
         "llm_used": bool(llm),
         "error": error,
         "tool_version": VERSION,

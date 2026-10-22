@@ -121,7 +121,12 @@ export interface Faces { status: string; count?: number; faces: Face[]; detail?:
 
 export interface TimelineFrame {
   label: string; t: number; index: number; faces: number[][]; flicker: number | null; ela_max_z: number;
-  ai_score: number | null; ai_note: string; on_sheet: boolean; key: boolean;
+  ai_score: number | null; ai_note: string; on_sheet: boolean; key: boolean; swap?: number | null;
+}
+
+export interface FaceSwap {
+  available: boolean; error?: string; model?: string; frames?: { label: string; p: number }[];
+  n?: number; score?: number | null; fake_frames?: number; seconds?: number;
 }
 
 export interface Speech {
@@ -204,6 +209,7 @@ export interface CaseResult {
   error: string | null;
   tool_version: string;
   official_check?: OfficialCheck;
+  face_swap?: FaceSwap | null;
   event_check?: EventCheck;
   comparison?: Comparison;
 }
@@ -240,7 +246,7 @@ export interface Chain { ok: boolean; entries: number; head: string | null; prob
 export interface Status {
   llm: { provider: string; configured: boolean; model: string };
   opencv: boolean;
-  faces: boolean;
+  faces: boolean; face_swap_model?: boolean;
   ffmpeg: boolean;
   pdf: boolean;
   signing: string;

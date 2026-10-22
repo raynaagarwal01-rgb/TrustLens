@@ -1,6 +1,6 @@
 # TrustLens
 
-**AI + LLM-based deepfake detection and digital evidence analysis.** Open a photo, video, voice note, screenshot, notice or event poster: TrustLens checks whether it's AI-generated, deepfaked or edited, shows *where*, explains the evidence in plain English and Hindi, checks claims against official VTOP records and the web, and keeps a hash-chained chain of custody with a signed PDF report anyone can verify.
+**AI + LLM-based deepfake detection and digital evidence analysis.** Runs the model that won Facebook's $1M Deepfake Detection Challenge, a vision LLM and a dozen forensic tests together. Open a photo, video, voice note, screenshot, notice or event poster: TrustLens checks whether it's AI-generated, deepfaked or edited, shows *where*, explains the evidence in plain English and Hindi, checks claims against official VTOP records and the web, and keeps a hash-chained chain of custody with a signed PDF report anyone can verify.
 
 Built for a hackathon (Track 1: AI + LLM-Based Deepfake Detection and Digital Evidence Analysis).
 
@@ -10,6 +10,7 @@ Built for a hackathon (Track 1: AI + LLM-Based Deepfake Detection and Digital Ev
 pip install -r requirements.txt
 cp .env.example .env        # Windows: copy .env.example .env
 # edit .env and paste your Groq (or Gemini) key, once
+python tools/get_dfdc_model.py   # once: the face-swap model that won Facebook's Deepfake Detection Challenge (267 MB)
 python server.py
 ```
 
@@ -25,19 +26,26 @@ Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DE
 
 | | |
 |---|---|
-| **Photos** | Content Credentials, camera-preview comparison, error levels, JPEG ghost, clone detection, crop detection, 7 inspection layers, faces sent to the AI review as zoomed close-ups |
-| **Videos** | 12 frames across the clip, faces in each, a contact sheet and face close-ups to the AI review, a per-frame score on a timeline, credentials and AI tool names in metadata, the soundtrack through the voice-note check |
+| **Photos** | The DFDC-winning face-swap detector on every face, Content Credentials, camera-preview comparison, error levels, JPEG ghost, clone detection, crop detection, 7 inspection layers, faces sent to the AI review as zoomed close-ups |
+| **Videos** | 12 frames across the clip; the DFDC-winning face-swap detector on up to 8 faces (a score on each frame of the timeline), running alongside the AI review; faces in each frame, a contact sheet and face close-ups to the AI review, a per-frame score on a timeline, credentials and AI tool names in metadata, the soundtrack through the voice-note check |
 | **Voice notes** | Spectrogram with marked edit points, digital-silence detection, transcript (Groq Whisper or Gemini) and a scam check of what is said |
 | **Screenshots** | Payment receipts and chats read by the AI review, then checked by code: 12-digit UPI references, real dates that match their weekday, one amount everywhere, message times in order |
 | **Context** | Circulars checked against VTOP via cli-top automatically, with every step shown; earlier copies of a photo online (confirmed by image fingerprint); event posters against official listings |
 | **Many files** | Several files or a whole WhatsApp chat export (.zip): analysed in the background, sorted by risk, each file matched to its sender and time, CSV export |
 | **Evidence** | Plain three-line summary in English and Hindi, HTML report, signed PDF report with a QR code, "Verify a report" page and `python verify_report.py`, hash-chained custody log |
 
+## The face-swap detector
+
+[Selim Seferbekov's EfficientNet-B7](https://github.com/selimsef/dfdc_deepfake_challenge) (MIT licence) won Facebook's Deepfake Detection Challenge, 1st of 2,265 teams, trained on about 100,000 deepfake videos of 3,426 actors. TrustLens runs it **without PyTorch**: `torch_free.py` reads the official checkpoint straight from its pickle format, and `dfdc_model.py` re-implements EfficientNet-B7 in numpy (TensorFlow "same" padding, squeeze-and-excitation, BatchNorm folded into the convolutions), with the winner's own face crop (box plus a third on every side, 380 px) and its "confident strategy" for combining frames. About 1.5 s per face on a laptop CPU, run in a background thread while the AI review thinks.
+
+The re-implementation was checked on files with a known answer: the labelled face-swap clips score 0.99 on every frame and real faces 0.01, so the network computes what the trained weights expect. What it can't do is just as clear from those numbers: AI-generated faces and SadTalker-style talking heads score as real, because the DFDC data contains neither. So TrustLens lets a high score decide the verdict, and never lets a low one clear a file; the AI review and the other tests cover those kinds of fake.
+
 ## How it works
 
 ```
                 ┌ forensics.py / advanced.py   hashes, metadata, C2PA, thumbnail, ELA, ghost, clones, grid, layers
 image ──────────┤ faces.py                      face boxes + close-ups for the AI review
+                ├ face_swap.py + dfdc_model.py  DFDC-winning EfficientNet-B7 on each face (numpy, no PyTorch)
                 └ vision LLM                    image + error-level map + face close-ups + every forensic finding
 circular ── campus_check.py  AI reads the claims → cli-top exams/calendar/holiday → code compares dates → step log
 video ── video_analyser.py   frames, faces, contact sheet → vision LLM; metadata/C2PA; soundtrack → audio_analyser
@@ -50,7 +58,7 @@ audio ── audio_analyser.py   digital silence, spectrogram, metadata/C2PA; tr
      server.py (Starlette API) ──► web/ (React + TypeScript)   report.py (HTML)  pdf_report.py + signing.py (PDF)
 ```
 
-**Hard rules the LLM can't override:** Content Credentials or metadata declaring AI generation, or naming an AI video/voice tool, force "AI-generated"; credentials that fail verification, a camera preview showing a different version, a strong copy-move match, a notice that contradicts VTOP records, or a screenshot that fails format checks set minimum scores. Without the LLM, pixel tests alone never produce a "manipulated" verdict. The lowest band is "no evidence of manipulation found", never "authentic"; a voice note with no traces stays amber, because a cloned voice leaves none.
+**Hard rules the LLM can't override:** the DFDC face-swap detector scoring most frames as fake, Content Credentials or metadata declaring AI generation, or naming an AI video/voice tool, force "AI-generated"; credentials that fail verification, a camera preview showing a different version, a strong copy-move match, a notice that contradicts VTOP records, or a screenshot that fails format checks set minimum scores. Without the LLM, pixel tests alone never produce a "manipulated" verdict. The lowest band is "no evidence of manipulation found", never "authentic"; a voice note with no traces stays amber, because a cloned voice leaves none.
 
 ## Calibration: what each test is allowed to do
 
@@ -58,6 +66,7 @@ Techniques follow [Sherloq](https://github.com/GuidoBartoli/sherloq), [c2patool]
 
 | Test | Measured | Role |
 |---|---|---|
+| **Face-swap detector (DFDC winner)** | Labelled face-swap videos 2/2 at 99% on every frame; real videos 2/2 and real portraits 8/8 at 1–2%; 12/24 simple face swaps above 50%. Not trained on fully AI-generated faces or animated photos (those score 1–5%) | Decides the verdict when confident (≥80% on most frames); a low score clears nothing |
 | Content Credentials (C2PA) | 13/13 AI faces identified from Google-signed credentials | Decides the verdict |
 | Embedded camera preview | 3/3 edited photos caught and located; hints on 2/37 odd camera files | Decides the verdict |
 | Error-level analysis | Region in 4/4 CASIA forgeries, 62–89% inside the true edit | Locates the edit for the AI review |
@@ -105,6 +114,7 @@ For example, the demo forged notice says the Database Systems FAT moved to 20-No
 | `evidence_analyser.py` | Image pipeline with the vision LLM; hard rules; verdict |
 | `video_analyser.py`, `audio_analyser.py`, `faces.py`, `media.py` | Video, voice notes, faces, file-type detection and ffmpeg |
 | `forensics.py`, `advanced.py` | Image forensic tests and inspection layers |
+| `dfdc_model.py`, `face_swap.py`, `torch_free.py`, `tools/get_dfdc_model.py` | DFDC-winning face-swap detector in numpy; turning its score into evidence; reading PyTorch checkpoints without PyTorch; one-time download |
 | `screenshot_check.py`, `reverse_search.py` | Chat/payment forgery checks; earlier copies online |
 | `campus_check.py`, `event_check.py`, `vtop.py` | Campus checks and the cli-top wrapper |
 | `summary.py` | Three-line English and Hindi summary (templates, no AI) |

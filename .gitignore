@@ -14,3 +14,6 @@ web/node_modules/
 keys/
 .trustlens_models.json
 demo_backup/
+
+# DFDC face-swap model: downloaded by tools/get_dfdc_model.py
+models/dfdc/
