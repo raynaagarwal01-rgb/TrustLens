@@ -303,6 +303,13 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
         confidence = "medium"
 
     verdict, label = _band(score)
+    if not llm and verdict == "no_evidence":
+        # Pixel tests can't see most AI images or clean edits; don't let "no evidence" read as "clean".
+        label = "Not enough evidence: AI review was off"
+        explanation = ("Only forensic tests ran, and they found no technical traces. That does not mean "
+                       "the image is real: AI-generated images without Content Credentials, and edits "
+                       "saved once at normal quality, are usually only visible to the AI visual review. "
+                       "Turn it on and open the image again.")
     base_limits = [
         "Forensic tests can show signs of manipulation but cannot prove an image is authentic.",
         "Images re-shared on WhatsApp or social media lose metadata and fine detail, which hides evidence.",

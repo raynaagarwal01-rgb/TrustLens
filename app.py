@@ -7,6 +7,7 @@ Run:  streamlit run app.py
 import hashlib
 import io
 import os
+import envfile  # loads .env
 from pathlib import Path
 
 import numpy as np
@@ -37,12 +38,12 @@ SEV_ICON = {"high": "🔴", "medium": "🟠", "low": "🔵", "info": "⚪"}
 with st.sidebar:
     st.title("🔍 TrustLens")
     st.caption("AI + LLM deepfake detection and digital evidence analysis")
-    provider = os.getenv("LLM_PROVIDER", "gemini")
-    key_ok = bool(os.getenv("GEMINI_API_KEY") if provider == "gemini" else os.getenv("GROQ_API_KEY"))
+    key_ok, ai_status = envfile.ai_review_status()
     use_llm = st.toggle("AI visual analysis (vision LLM)", value=key_ok, disabled=not key_ok,
                         help="Sends the image and its ELA heatmap to the vision model.")
     if not key_ok:
-        st.warning(f"No API key for {provider}: running forensic tests only.")
+        st.error(f"{ai_status} Without it, AI-generated images without Content Credentials "
+                 "(screenshots, downloads, WhatsApp forwards) can't be detected.")
     det = os.getenv("DETECTOR_MODEL")
     st.caption(f"Pretrained detector: {det if det else 'off (set DETECTOR_MODEL)'}")
 

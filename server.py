@@ -12,6 +12,8 @@ import hashlib
 import io
 import json
 import os
+
+import envfile  # loads .env before anything reads the key
 import shutil
 import threading
 import time
@@ -162,7 +164,7 @@ def save_result(cid: str, result: dict):
 
 async def status(request: Request):
     provider = os.getenv("LLM_PROVIDER", "gemini").lower()
-    key = os.getenv("GEMINI_API_KEY") if provider == "gemini" else os.getenv("GROQ_API_KEY")
+    key = envfile.ai_review_status()[0]
     try:
         import c2pa  # noqa: F401
         c2pa_ok = True
@@ -223,7 +225,7 @@ async def list_cases(request: Request):
 
 
 async def create_case(request: Request):
-    use_llm = request.query_params.get("ai", "1") != "0"
+    use_llm = request.query_params.get("ai", "1") != "0" and envfile.ai_review_status()[0]
     ctype = request.headers.get("content-type", "")
     if ctype.startswith("multipart/"):
         form = await request.form(max_part_size=MAX_UPLOAD)
@@ -470,6 +472,7 @@ if __name__ == "__main__":
 
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=1)
     print(f"TrustLens is running at http://127.0.0.1:{port}  (press Ctrl+C to stop)", flush=True)
+    print(envfile.ai_review_status()[1], flush=True)
     try:
         _Server(config).run()
     except KeyboardInterrupt:

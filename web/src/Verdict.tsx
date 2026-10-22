@@ -35,7 +35,10 @@ interface Props {
 }
 
 /** Name the specific finding when the type is known, instead of "manipulated or AI-generated". */
+const unchecked = (r: CaseResult) => r.verdict === "no_evidence" && !r.llm_used;
+
 function headline(r: CaseResult): string {
+  if (unchecked(r)) return "Not enough evidence";
   if (r.verdict === "inconclusive") return "Inconclusive";
   if (r.verdict !== "fake" && r.verdict !== "likely_fake") return r.verdict_label;
   const likely = r.verdict === "likely_fake" ? "Likely " : "";
@@ -52,10 +55,11 @@ export function Verdict({ result: r, onMark }: Props) {
   const strong = r.forensic_signals.filter((s) => s.severity === "high" || s.severity === "medium");
   const mode = r.llm_used ? "Forensic tests and AI review" : "Forensic tests only";
   return (
-    <aside className={`verdict verdict--${r.verdict}`} aria-label="Verdict">
+    <aside className={`verdict verdict--${unchecked(r) ? "inconclusive" : r.verdict}`} aria-label="Verdict">
       <div className="verdict__band">
         <h2 className="verdict__label display">{headline(r)}</h2>
-        <div className="verdict__type">{r.verdict === "no_evidence" ? "Nothing found that indicates editing or AI generation" : r.fake_type_label}</div>
+        <div className="verdict__type">{unchecked(r) ? "AI review was off, and forensic tests alone can't spot most AI images"
+            : r.verdict === "no_evidence" ? "Nothing found that indicates editing or AI generation" : r.fake_type_label}</div>
       </div>
       <div className="verdict__body">
         <ScoreScale score={r.manipulation_score} />

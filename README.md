@@ -8,13 +8,14 @@ Built for a hackathon (Track 1: AI + LLM-Based Deepfake Detection and Digital Ev
 
 ```bash
 pip install -r requirements.txt
-export GROQ_API_KEY=your_key LLM_PROVIDER=groq LLM_MODEL=qwen/qwen3.8-27b
-#   or: export GEMINI_API_KEY=your_key
-#   Windows PowerShell: $env:GROQ_API_KEY="..."; $env:LLM_PROVIDER="groq"; $env:LLM_MODEL="qwen/qwen3.8-27b"
+cp .env.example .env        # Windows: copy .env.example .env
+# edit .env and paste your Groq (or Gemini) key, once
 python server.py
 ```
 
-Your browser opens at `http://127.0.0.1:8000`. The interface is prebuilt in `web/dist`, so no Node.js is needed to run it. Without an API key, TrustLens still runs every forensic test; only the AI visual review and the notice/event checks (which read text in images) need a key.
+Your browser opens at `http://127.0.0.1:8000`, and the terminal prints whether the AI review is on. The key in `.env` is loaded automatically every time, in any terminal (`.env` is gitignored). The interface is prebuilt in `web/dist`, so no Node.js is needed.
+
+**Keep the AI review on.** Forensic tests only catch edits that leave technical traces (clones, a mismatched camera preview, Content Credentials, re-saves). AI-generated images without credentials (screenshots, downloads, WhatsApp forwards) and clean edits are usually only visible to the vision model. Without a key, a result with no traces reads "Not enough evidence: AI review was off", never "no evidence".
 
 Optional: `pip install c2pa-python` verifies Content Credentials signatures; `DETECTOR_MODEL=<huggingface id>` with `transformers` adds a pretrained classifier. The previous Streamlit interface still works: `streamlit run app.py`.
 

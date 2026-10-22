@@ -56,7 +56,7 @@ export function Locker({ open, status, cases, samples, currentId, ai, onAi, onFi
             <img src={api.image(c.id, "original", 160)} alt="" loading="lazy" />
             <span style={{ minWidth: 0 }}>
               <span className="case-item__name">{c.name}</span>
-              <span className="case-item__meta"><span className={`dot dot--${c.verdict}`} />{SHORT[c.verdict] ?? c.verdict_label}</span>
+              <span className="case-item__meta"><span className={`dot dot--${c.verdict_label.includes("AI review was off") ? "inconclusive" : c.verdict}`} />{c.verdict_label.includes("AI review was off") ? "Not AI-checked" : SHORT[c.verdict] ?? c.verdict_label}</span>
             </span>
           </button>
         ))}

@@ -10,6 +10,8 @@ import json
 import os
 import re
 
+import envfile  # noqa: F401  (loads .env so the key survives new terminals)
+
 
 def call_llm(system: str, user: str, temperature: float = 0.2,
              images: list[tuple[bytes, str]] | None = None) -> str:
