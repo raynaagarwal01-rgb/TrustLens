@@ -132,12 +132,14 @@ def _preview(d: Path, kind: str) -> Path | None:
 
 
 def _store_images(d: Path, images: dict):
+    """Save analysis images so a case reopens without re-running the tests. The evidence itself stays
+    original.bin; these are views of it (the ground-truth mask is re-read from samples/)."""
     folder = d / "images"
     folder.mkdir(exist_ok=True)
     for k, im in images.items():
-        if im is None or not k.replace("_", "").isalnum():
+        if im is None or k in ("ground_truth", "compare_other") or not k.replace("_", "").isalnum():
             continue
-        im.convert("RGB").save(folder / f"{k}.jpg", "JPEG", quality=90)
+        im.convert("RGB").save(folder / f"{k}.jpg", "JPEG", quality=92)
 
 
 SCREENSHOT_KINDS = ("screenshot", "receipt", "payment", "chat")
@@ -171,8 +173,8 @@ def save_case(data: bytes, name: str, use_llm: bool, source: str) -> dict:
     gt = SAMPLES / (Path(name).stem + "_gt.png")
     if source == "sample" and gt.exists():
         images["ground_truth"] = Image.open(gt).convert("L")
+    _store_images(d, images)
     if result.get("media_kind") in STORED_KINDS:
-        _store_images(d, images)
         _preview(d, result["media_kind"])
     meta = {"id": cid, "sha256": sha, "name": safe, "source": source, "created": time.time(), "use_llm": use_llm,
             "media_kind": result.get("media_kind", "image")}
@@ -208,10 +210,13 @@ def case_images(cid: str) -> dict:
     if entry["images"] is None:
         r = entry["result"]
         folder = _case_dir(cid) / "images"
-        if r.get("media_kind") in STORED_KINDS and folder.exists():
+        if folder.exists() and (folder / "original.jpg").exists():
             images = {p.stem: Image.open(p) for p in folder.glob("*.jpg")}
             for im in images.values():
                 im.load()
+            gt = SAMPLES / (Path(r["case"]["name"]).stem + "_gt.png")
+            if r["case"].get("source") == "sample" and gt.exists():
+                images["ground_truth"] = Image.open(gt).convert("L")
         else:
             fx = forensics.analyse_image(entry["data"], r["case"]["name"])
             images = fx["images"]

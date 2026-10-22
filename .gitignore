@@ -12,3 +12,4 @@ cases/
 web/node_modules
 web/node_modules/
 keys/
+.trustlens_models.json

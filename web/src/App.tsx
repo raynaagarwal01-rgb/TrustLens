@@ -46,6 +46,7 @@ export function App() {
   const [dragOver, setDragOver] = useState(false);
   const [demo, setDemo] = useState<{ step: number; playing: boolean; ids: string[]; preparing: { done: number; total: number } | null } | null>(null);
   const compareInput = useRef<HTMLInputElement>(null);
+  const shownId = useRef("");
 
   const aiOn = !!status?.llm.configured;
   const fail = useCallback((message: string) => setToast({ message, kind: "error" }), []);
@@ -62,9 +63,10 @@ export function App() {
   }, []);
 
   const show = useCallback(async (r: CaseResult, replace = false) => {
-    const l = await api.layers(r.case.id).catch(() => null);  // load first: never pair a case with another case's layers
-    setLayers(l);
+    shownId.current = r.case.id;
+    setLayers(null);  // never pair a case with another case's layers
     setResult(r);
+    api.layers(r.case.id).then((l) => { if (shownId.current === r.case.id) setLayers(l); }).catch(() => undefined);
     go(`#/case/${r.case.id}`, replace);
     document.title = `${r.case.name}: ${r.headline || r.verdict_label} · TrustLens`;
   }, [go]);

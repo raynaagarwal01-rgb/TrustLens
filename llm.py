@@ -13,7 +13,30 @@ import re
 import envfile  # noqa: F401  (loads .env so the key survives new terminals)
 
 
-_one_image_only = os.getenv("LLM_MAX_IMAGES", "") == "1"
+_LIMITS = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".trustlens_models.json")
+
+
+def _model_key() -> str:
+    return f"{os.getenv('LLM_PROVIDER', 'gemini').lower()}:{os.getenv('LLM_MODEL', '')}"
+
+
+def _remembered_one_image() -> bool:
+    try:
+        return bool(json.load(open(_LIMITS)).get(_model_key(), {}).get("one_image"))
+    except Exception:
+        return False
+
+
+def _remember_one_image():
+    try:
+        data = json.load(open(_LIMITS)) if os.path.exists(_LIMITS) else {}
+        data[_model_key()] = {"one_image": True}
+        json.dump(data, open(_LIMITS, "w"))
+    except Exception:
+        pass
+
+
+_one_image_only = os.getenv("LLM_MAX_IMAGES", "") == "1" or _remembered_one_image()
 
 
 def combine_images(images: list[tuple[bytes, str]]) -> tuple[bytes, str]:
@@ -71,6 +94,7 @@ def call_llm(system: str, user: str, temperature: float = 0.2,
     except Exception as e:
         if len(pictures) > 1 and _too_many_images(e):
             _one_image_only = True
+            _remember_one_image()
             return _call(system, _combined_note(user, len(pictures)), temperature, [combine_images(pictures)] +
                          [i for i in images if not i[1].startswith("image/")])
         raise
