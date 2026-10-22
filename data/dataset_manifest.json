@@ -1,132 +1,132 @@
 {
-  "dataset_name": "TrustLens-SyntheticFaces-v1",
-  "purpose": "Training and evaluating synthetic / deepfake face detection models for TrustLens digital safety copilot",
-  "num_samples": 8,
+  "dataset_name": "TrustLens-IndianCollegeStudents-Synthetic-v1",
+  "target_audience": "College students in India (Undergraduates, Engineering, Commerce & Arts)",
+  "purpose": "Training and evaluating deepfake/synthetic profile detection models for student digital safety and scam prevention in TrustLens",
+  "num_samples": 7,
   "format": "JPEG",
   "resolution": "1024x1024",
   "color_space": "RGB",
-  "label": "fake",
+  "label": "fake_ai_generated",
   "label_id": 1,
   "samples": [
     {
-      "filename": "face_01.jpg",
+      "filename": "student_01.jpg",
       "demographic": {
         "gender": "female",
-        "age_bracket": "young_adult (20-25)",
-        "ethnicity": "caucasian / ambiguous"
+        "age": 20,
+        "academic_profile": "Undergraduate student (Arts/Commerce)",
+        "region": "India"
       },
-      "style": "studio_headshot",
-      "lighting": "diffused studio softbox",
-      "expression": "neutral",
+      "setting": "College campus courtyard with brick architecture and lush greenery in background bokeh",
+      "attire": "Pastel cotton embroidered kurti, natural everyday college look",
+      "expression": "Warm, gentle friendly smile",
+      "scam_risk_context": "Impersonation of campus peer, fake WhatsApp study group or fest coordinator profile",
       "synthetic_indicators": [
-        "high skin texture uniformity",
-        "symmetrical catchlight reflections",
-        "smooth synthetic background falloff"
+        "Slightly regular specular reflection in eye pupils",
+        "Smooth skin gradient transition under natural sunlight",
+        "Synthetic depth-of-field boundary along shoulder edges"
       ]
     },
     {
-      "filename": "face_02.jpg",
+      "filename": "student_02.jpg",
       "demographic": {
         "gender": "male",
-        "age_bracket": "young_adult (20-25)",
-        "ethnicity": "south_asian"
+        "age": 21,
+        "academic_profile": "B.Tech Engineering undergraduate",
+        "region": "India"
       },
-      "style": "corporate_headshot",
-      "lighting": "three-point studio",
-      "expression": "neutral confident",
+      "setting": "College campus academic block pathway with trees in soft morning daylight",
+      "attire": "Navy blue polo t-shirt with backpack strap slung over shoulder",
+      "expression": "Natural relaxed smile, direct eye contact",
+      "scam_risk_context": "Fake internship offer / recruiter contacting via Telegram or LinkedIn",
       "synthetic_indicators": [
-        "fine high-frequency hairline boundary",
-        "clean studio bokeh"
+        "High-frequency hairline boundary artifacts",
+        "Algorithmic texture consistency on fabric mesh"
       ]
     },
     {
-      "filename": "face_03.jpg",
-      "demographic": {
-        "gender": "male",
-        "age_bracket": "young_adult (25-30)",
-        "ethnicity": "black / african_descent"
-      },
-      "style": "commercial_portrait",
-      "lighting": "three-point studio with subtle rim",
-      "expression": "calm direct eye contact",
-      "synthetic_indicators": [
-        "synthetic iris fiber geometry",
-        "crisp boundary separation from gradient background"
-      ]
-    },
-    {
-      "filename": "face_04.jpg",
-      "demographic": {
-        "gender": "male",
-        "age_bracket": "adult (30-35)",
-        "ethnicity": "hispanic / latino"
-      },
-      "style": "studio_headshot",
-      "lighting": "rim light with warm fill",
-      "expression": "neutral",
-      "synthetic_indicators": [
-        "subtle micro-contrast artifacts in peripheral hair",
-        "digital frequency distribution"
-      ]
-    },
-    {
-      "filename": "face_05.jpg",
-      "demographic": {
-        "gender": "male",
-        "age_bracket": "senior (65-70)",
-        "ethnicity": "caucasian"
-      },
-      "style": "distinguished_portrait",
-      "lighting": "soft diffuse portrait lighting",
-      "expression": "gentle neutral",
-      "synthetic_indicators": [
-        "wrinkle mapping continuity",
-        "synthetic ocular reflections"
-      ]
-    },
-    {
-      "filename": "face_06.jpg",
+      "filename": "student_03.jpg",
       "demographic": {
         "gender": "female",
-        "age_bracket": "young_adult (25-30)",
-        "ethnicity": "east_asian"
+        "age": 19,
+        "academic_profile": "First-year undergraduate student",
+        "region": "India"
       },
-      "style": "corporate_headshot",
-      "lighting": "balanced softbox studio",
-      "expression": "soft neutral",
+      "setting": "University central library with tall wooden bookshelves in warm ambient bokeh",
+      "attire": "Round wireframe spectacles, casual green knit college sweater and backpack",
+      "expression": "Pleasant, welcoming smile",
+      "scam_risk_context": "Fake exam paper / study notes seller on Telegram charging upfront UPI payments",
       "synthetic_indicators": [
-        "flawless skin tone gradients",
-        "subtle depth plane smoothing"
+        "Micro-warping around spectacle frame bridge and eye reflection balance",
+        "Unusually pristine ambient lighting distribution"
       ]
     },
     {
-      "filename": "face_07.jpg",
+      "filename": "student_04.jpg",
       "demographic": {
-        "gender": "female",
-        "age_bracket": "adult (30-35)",
-        "ethnicity": "caucasian"
+        "gender": "male",
+        "age": 20,
+        "academic_profile": "Second-year undergraduate student",
+        "region": "India"
       },
-      "style": "daylight_portrait",
-      "lighting": "natural diffused daylight",
-      "expression": "subtle smile",
+      "setting": "Sunny college campus quad lawn with trees and academic buildings",
+      "attire": "Open casual plaid flannel shirt over graphic tee",
+      "expression": "Warm, relaxed candid smile",
+      "scam_risk_context": "Fake college fest / ticket seller asking for instant UPI transfer",
       "synthetic_indicators": [
-        "natural daylight specular diffusion",
-        "background blur artifact profile"
+        "Synthetic skin pore pattern regularity across cheekbones",
+        "Subtle edge blending against high-contrast sunlight backdrop"
       ]
     },
     {
-      "filename": "face_08.jpg",
+      "filename": "student_05.jpg",
+      "demographic": {
+        "gender": "male",
+        "age": 19,
+        "academic_profile": "Undergraduate student / campus club member",
+        "region": "India"
+      },
+      "setting": "Campus open-air amphitheater steps and cafeteria lawn",
+      "attire": "College fest pullover hoodie in navy and heather grey",
+      "expression": "Casual, approachable candid expression",
+      "scam_risk_context": "Fake campus senior offering proxy attendance or assignment completion services",
+      "synthetic_indicators": [
+        "Algorithmic pupil roundness and catchlight placement",
+        "Fabric fold pattern uniformity"
+      ]
+    },
+    {
+      "filename": "student_06.jpg",
       "demographic": {
         "gender": "female",
-        "age_bracket": "young_adult (20-25)",
-        "ethnicity": "south_asian"
+        "age": 21,
+        "academic_profile": "Final-year student preparing for campus placements",
+        "region": "India"
       },
-      "style": "studio_headshot",
-      "lighting": "soft studio",
-      "expression": "neutral professional",
+      "setting": "Studio headshot / college placement profile portrait",
+      "attire": "Smart formal attire, neatly groomed",
+      "expression": "Neutral professional confidence",
+      "scam_risk_context": "Fake job interview / HR recruiter asking for 'security deposit' or training fees",
       "synthetic_indicators": [
-        "specular lighting symmetry across cheekbones",
-        "algorithmic pupil roundness"
+        "Studio specular lighting symmetry",
+        "Fine digital frequency distribution in hair strands"
+      ]
+    },
+    {
+      "filename": "student_07.jpg",
+      "demographic": {
+        "gender": "male",
+        "age": 21,
+        "academic_profile": "Final-year engineering graduate / campus placement candidate",
+        "region": "India"
+      },
+      "setting": "Clean studio backdrop, campus placement portrait",
+      "attire": "Crisp formal shirt, neat short dark hair",
+      "expression": "Calm, professional direct gaze",
+      "scam_risk_context": "Fake student loan app broker or unaccredited certification course seller",
+      "synthetic_indicators": [
+        "Sharp synthetic boundary separation from background gradient",
+        "Absence of authentic camera sensor noise profile"
       ]
     }
   ]

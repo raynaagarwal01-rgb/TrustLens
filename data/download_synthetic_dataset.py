@@ -21,15 +21,15 @@ FAKE_DIR = BASE_DIR / "fake"
 REAL_DIR = BASE_DIR / "real"
 
 # Curated open URLs for benchmark real face samples (public domain / open license)
+# Tailored for Indian college students and young adults
 SAMPLE_REAL_FACES = [
+    ("https://images.unsplash.com/photo-1618042164219-62c820f10723?w=1024&q=80", "real_indian_student_01.jpg"),
+    ("https://images.unsplash.com/photo-1598387993441-a364f854c3e1?w=1024&q=80", "real_indian_student_02.jpg"),
+    ("https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=1024&q=80", "real_indian_student_03.jpg"),
     ("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1024&q=80", "real_01.jpg"),
     ("https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1024&q=80", "real_02.jpg"),
     ("https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=1024&q=80", "real_03.jpg"),
     ("https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=1024&q=80", "real_04.jpg"),
-    ("https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1024&q=80", "real_05.jpg"),
-    ("https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=1024&q=80", "real_06.jpg"),
-    ("https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=1024&q=80", "real_07.jpg"),
-    ("https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=1024&q=80", "real_08.jpg"),
 ]
 
 
