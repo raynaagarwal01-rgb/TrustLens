@@ -13,6 +13,7 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
+import campus_check
 import evidence_analyser as ea
 from report import build_report_html, result_to_json
 
@@ -50,7 +51,8 @@ with st.sidebar:
     labels = {"(none)": None}
     for p in sample_files:
         tag = ("Tampered (CASIA)" if p.name.startswith("Tp_") else "Authentic" if p.name.startswith("Au_")
-               else "AI-generated" if p.name.startswith("AI_") else "Sample")
+               else "AI-generated" if p.name.startswith("AI_") else "Forged notice (demo)" if p.name.startswith("Forged_")
+               else "Notice (demo)" if p.name.startswith("Notice_") else "Sample")
         labels[f"{tag} · {p.name[:28]}"] = p
     choice = st.selectbox("Pick a sample", list(labels))
 
@@ -129,6 +131,42 @@ with st.expander("Noise consistency map (experimental)"):
 # ---------------------------------------------------------------------------
 # Details
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Campus check against official VTOP records (cli-top)
+# ---------------------------------------------------------------------------
+
+STATUS_ICON = {"confirmed": "✅", "contradicted": "❌", "not_checked": "❔"}
+st.subheader("🏫 Campus check: compare with official VTOP records")
+st.caption("For notices, circulars and forwarded messages. TrustLens reads the claims in the image and checks "
+           "them against your exam schedule, academic calendar and holidays from VTOP, fetched with cli-top.")
+if not r["llm_used"]:
+    st.info("Turn on AI visual analysis (needs an API key) so TrustLens can read the notice.")
+else:
+    live = st.checkbox("Fetch fresh data from VTOP now (slower, about a minute)", value=False,
+                       help="Off: uses the VTOP snapshot saved by your last cli-top run.")
+    if st.button("Check this notice against VTOP"):
+        with st.spinner("Reading the notice and checking your VTOP records..."):
+            try:
+                check = campus_check.run_campus_check(data, live=live)
+                st.session_state["result"] = campus_check.apply_to_result(r, check)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Campus check failed: {type(e).__name__}: {str(e)[:200]}")
+    oc = r.get("official_check")
+    if oc:
+        box = {"contradicted": st.error, "confirmed": st.success}.get(oc["overall"], st.info)
+        box(oc["summary"])
+        if not oc["claims"]:
+            st.write("No exam, holiday or deadline claims found in this image.")
+        for c in oc["claims"]:
+            st.markdown(f"{STATUS_ICON.get(c['status'], '❔')} **{c['statement']}**  \n{c['official']}")
+        src = ", ".join(f"{k}: {v}" for k, v in oc["data_source"].items()) or "no VTOP data found"
+        st.caption(f"Official data source: {src}")
+        if oc["vtop_errors"]:
+            with st.expander("VTOP fetch problems"):
+                for k, v in oc["vtop_errors"].items():
+                    st.write(f"{k}: {v}")
 
 t1, t2, t3, t4 = st.tabs(["Visual findings", "Forensic tests", "Metadata", "Evidence integrity"])
 with t1:

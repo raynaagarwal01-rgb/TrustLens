@@ -30,6 +30,20 @@ def result_to_json(r: dict) -> str:
     return json.dumps({k: v for k, v in r.items() if k != "images"}, indent=2, default=str)
 
 
+def _official_section(r: dict) -> str:
+    oc = r.get("official_check")
+    if not oc:
+        return ""
+    icon = {"confirmed": "✅", "contradicted": "❌"}
+    rows = "".join(f"<tr><td>{icon.get(c['status'], '❔')} {_e(c['status'])}</td><td><b>{_e(c['statement'])}</b></td>"
+                   f"<td>{_e(c['official'])}</td></tr>" for c in oc["claims"]) or \
+        "<tr><td colspan=3 class='muted'>No checkable claims found.</td></tr>"
+    src = ", ".join(f"{k}: {v}" for k, v in oc["data_source"].items()) or "none"
+    return (f"<h2>Official record check (VTOP via cli-top)</h2><p><b>{_e(oc['summary'])}</b></p>"
+            f"<table><tr><th>Result</th><th>Claim in the image</th><th>Official record</th></tr>{rows}</table>"
+            f"<p class='muted'>Data source: {_e(src)}</p>")
+
+
 def build_report_html(r: dict) -> str:
     i = r["integrity"]
     colour = VERDICT_COLOUR.get(r["verdict"], "#555")
@@ -102,6 +116,7 @@ SHA-256 hash (e.g. <code>certutil -hashfile file SHA256</code> on Windows, <code
  <figure><img src="{_img(imgs['noise'])}"><figcaption class="muted">Noise consistency map, experimental (smooth areas such as sky often light up; weak hint only)</figcaption></figure>
 </div>
 
+{_official_section(r)}
 <h2>4. Metadata</h2>
 <table>{exif_rows}{text_rows}</table>
 <p class="muted">XMP present: {r['metadata']['xmp_present']} · Content Credentials (C2PA) present: {r['metadata']['c2pa_present']}</p>

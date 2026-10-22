@@ -25,6 +25,17 @@ image ──► forensics.py ──────────────► signa
 6. **Hard rules the LLM can't override**: AI-generator metadata forces an "AI-generated" verdict; agreeing pixel tests and edit metadata set minimum scores; without the LLM, pixel tests alone can never produce a "fake" verdict.
 7. **Verdict**: manipulation score 0–100, type (AI-generated, face swap, spliced region, edited document, retouched), confidence, findings, limitations and next steps. The lowest band is "no evidence of manipulation found", never "authentic", because forensics can't prove a negative.
 
+## Campus check: notices vs official VTOP records
+
+Forged circulars and WhatsApp forwards ("DBMS FAT postponed to 20-Nov!") are digital evidence too. For a notice or screenshot, TrustLens:
+
+1. reads the notice and its dated claims with the vision LLM,
+2. fetches the student's **official records from VTOP through [cli-top](https://cli-top.acmvit.in)**: exam schedule, academic calendar and holidays (`vtop.py` answers cli-top's semester and class-group prompts itself and reads the colour-coded calendar),
+3. compares them **deterministically** (no AI decides whether two dates match): e.g. *"VTOP exam schedule: BACSE202 Database Systems FAT on 13-Nov-2026"* vs the notice's 20-Nov,
+4. raises the evidence verdict to "likely manipulated (edited document)" when the notice contradicts official records, and adds the comparison to the evidence report.
+
+It uses the latest saved cli-top snapshot by default (fast, works offline) or fetches live on request. Tested live on a real VTOP account: exam schedule and current-semester calendar parsed correctly.
+
 ## Measured on real data (`python tests/test_evidence.py`)
 
 | Test set | Result |
@@ -78,6 +89,8 @@ TrustLens includes a curated dataset of photorealistic AI-generated faces and mo
 | `evidence_analyser.py` | Combines forensics, detector and vision LLM; hard rules; verdict |
 | `report.py` | Self-contained HTML evidence report (print to PDF) and JSON export |
 | `app.py` | Streamlit interface |
+| `campus_check.py` | Notice claims vs official VTOP records (cli-top) |
+| `vtop.py` | cli-top wrapper: runs commands, answers prompts, parses tables and the colour-coded calendar |
 | `llm.py` | Gemini / Groq calls, with image support |
 | `samples/` | Demo images with sources and ground truth ([details](samples/README.md)) |
 | `tests/` | Tests on the real samples |
@@ -85,7 +98,7 @@ TrustLens includes a curated dataset of photorealistic AI-generated faces and mo
 | `face_analyser.py` | Experimental standalone face analyser (metadata, ELA, FFT). **Not calibrated yet:** its fixed thresholds currently label real web photos as AI-generated too, so it isn't used by the app |
 | `train_face_detector.py` | Training pipeline scaffold (baseline + PyTorch). Needs a large dataset: the small baseline in `models/` (16–26 images) is not a meaningful result |
 
-Earlier prototypes from other tracks (`scam_analyser.py`, `link_checker.py`, `misinfo_analyser.py`, `vtop.py`) remain in the repo but aren't part of the Track 1 app.
+Earlier prototypes from other tracks (`scam_analyser.py`, `link_checker.py`, `misinfo_analyser.py`) remain in the repo but aren't part of the Track 1 app.
 
 ## Limitations
 
