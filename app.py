@@ -154,6 +154,9 @@ with t3:
     if r["metadata"]["text_chunks"]:
         st.write("Embedded text metadata:")
         st.json(r["metadata"]["text_chunks"])
+    if r["metadata"].get("c2pa"):
+        st.write("Content Credentials (C2PA) manifest, as read by TrustLens (signature not verified):")
+        st.json(r["metadata"]["c2pa"])
     st.caption(f"XMP present: {r['metadata']['xmp_present']} · Content Credentials present: {r['metadata']['c2pa_present']}")
 with t4:
     i = r["integrity"]

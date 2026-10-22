@@ -18,7 +18,7 @@ image ──► forensics.py ──────────────► signa
 ```
 
 1. **Evidence integrity**: SHA-256 and MD5 at upload, timestamp, tool version. A built-in checker confirms whether any file is byte-identical to the analysed one.
-2. **Metadata forensics**: camera make/model and capture time, editing software (Photoshop, Canva, Snapseed…), modified-after-capture dates, AI-generator traces (Stable Diffusion/ComfyUI settings, the IPTC `trainedAlgorithmicMedia` marker, generator names), Content Credentials (C2PA) presence.
+2. **Metadata forensics**: camera make/model and capture time, editing software (Photoshop, Canva, Snapseed…), modified-after-capture dates, AI-generator traces (Stable Diffusion/ComfyUI settings, the IPTC `trainedAlgorithmicMedia` marker, generator names), Content Credentials (C2PA): TrustLens reads what the manifest declares (e.g. `trainedAlgorithmicMedia` = AI-generated, who signed it, SynthID watermark noted).
 3. **Error-level analysis (ELA)**: re-compresses the image and maps how each area reacts, normalised by local texture so ordinary edges don't dominate, then boxes the most anomalous region.
 4. **Noise consistency** (experimental) and **JPEG quality estimate**.
 5. **Vision LLM**: receives the image, its ELA heatmap and all forensic findings; reports visual artifacts with locations (hands, eyes, face boundaries, lighting, garbled text, fonts that don't match in documents).
@@ -32,6 +32,7 @@ image ──► forensics.py ──────────────► signa
 | 4 real CASIA v2.0 forgeries with ground-truth masks | ELA box found in **4/4**, 62–89% of each box inside the truly edited area (3–14% by chance) |
 | 4 authentic full-size phone photos (iPhone, Nokia, Jolla) | **0/4** false alarms, about 2 s each |
 | 11 real photos (`data/real/`, Unsplash) | **0/11** false alarms |
+| 13 AI-generated faces (`data/fake/`, made with Google's generative AI) | **13/13** identified as AI-generated from their Google-signed Content Credentials, even when the LLM was told to say "genuine" |
 | Small edited thumbnails | ELA raises hints on some untouched images too, so pixel tests are reported as *hints*, never proof |
 
 Small sample sizes: these numbers show the pipeline works on real forgeries, not a benchmark score.

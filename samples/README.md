@@ -5,7 +5,7 @@
 | `Tp_*.jpg` | Real tampered photos (splicing `Tp_D_`, copy-move `Tp_S_`) from the CASIA v2.0 image tampering dataset | [namtpham/casia2groundtruth](https://github.com/namtpham/casia2groundtruth) (samples folder) |
 | `Tp_*_gt.png` | Ground-truth masks: white = the region that was actually edited | same |
 | `Au_iphone_photo.jpg` | Authentic, unedited iPhone photo with full camera metadata | [ianare/exif-samples](https://github.com/ianare/exif-samples) (`jpg/hdr/iphone_hdr_NO.jpg`) |
-| `AI_face_01.jpg` … `AI_face_08.jpg`, `AI_student_01.jpg` … `AI_student_05.jpg` | AI-generated portraits, incl. Indian students on campus (copies of `data/fake/`) | Generator: **fill in which tool made these** |
+| `AI_face_01.jpg` … `AI_face_08.jpg`, `AI_student_01.jpg` … `AI_student_05.jpg` | AI-generated portraits, incl. Indian students on campus (copies of `data/fake/`) | Google generative AI: each file carries Content Credentials signed by Google LLC ("Created by Google Generative AI", SynthID watermark) |
 | `Au_jolla_phone_photo.jpg` | Authentic, unedited phone photo | [ianare/exif-samples](https://github.com/ianare/exif-samples) (`jpg/mobile/jolla.jpg`) |
 
 CASIA v2.0: J. Dong, W. Wang, T. Tan, "CASIA Image Tampering Detection Evaluation Database", ChinaSIP 2013. Used here for research/demo purposes with credit.

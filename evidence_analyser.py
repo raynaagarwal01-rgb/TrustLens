@@ -115,6 +115,15 @@ What to look for:
   signature that looks pasted, inconsistent background behind one text block.
 
 How to judge:
+- NEVER describe an image as "genuine", "authentic", "real" or "unedited". The most you can say is that
+  you found no evidence of manipulation. Forensics cannot prove authenticity.
+- Content Credentials (C2PA) are NOT proof of authenticity. Only what they declare matters, and that is
+  given in the test results. If they declare AI generation, the image is AI-generated.
+- Read every piece of visible text, logo and lettering character by character. Garbled, misspelled,
+  merged or inconsistent letters (e.g. on clothing, signs, badges) are a strong sign of AI generation.
+- Modern AI portraits can look flawless. Studio-perfect lighting and skin is not evidence of AI on its
+  own, but a clean appearance is also not evidence of authenticity: if you see nothing either way, use
+  a score of 30-45 (inconclusive) with low confidence rather than 0.
 - Cite only what you can actually see, with its location. Don't invent artifacts.
 - ELA bright areas along edges and fine texture are normal. They matter when one object or text
   field is clearly brighter or darker than similar surroundings.
@@ -144,7 +153,7 @@ def forensic_summary(fx: dict, det: dict) -> str:
              f"JPEG quality {fx['jpeg_quality'] if fx['jpeg_quality'] else 'n/a'}",
              f"Key metadata: {json.dumps(keep) if keep else 'none'}",
              f"PNG/text metadata keys: {list(meta['text_chunks'])[:8] or 'none'}",
-             f"Content Credentials present: {meta['c2pa_present']}",
+             f"Content Credentials: {json.dumps(meta.get('c2pa')) if meta.get('c2pa') else 'none'}",
              "Automated test signals:"]
     lines += [f"- [{s['severity']}] {s['check']}: {s['detail']}" for s in fx["signals"]]
     if det.get("status") == "ok":
@@ -169,6 +178,11 @@ def hard_rules(fx: dict, det: dict) -> tuple[int, str | None, list[str]]:
     if "AI generator trace in metadata" in checks:
         floor, ftype = 85, "ai_generated"
         notes.append("The file's own metadata was written by an AI image generator.")
+    if "Content Credentials declare AI generation" in checks:
+        floor, ftype = max(floor, 90), "ai_generated"
+        c2 = fx["metadata"].get("c2pa") or {}
+        who = ", ".join(c2.get("signed_by") or []) or "the creator"
+        notes.append(f"The file's Content Credentials, signed by {who}, declare it AI-generated.")
     if det.get("status") == "ok" and det["fake_probability"] >= 0.9:
         floor = max(floor, 70)
         notes.append(f"The pretrained detector is {det['fake_probability']:.0%} confident the image is fake.")

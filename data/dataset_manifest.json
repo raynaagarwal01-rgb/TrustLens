@@ -8,7 +8,7 @@
   "color_space": "RGB",
   "label": "fake_ai_generated",
   "label_id": 1,
-  "generator": "FILL IN: which tool generated these images",
+  "generator": "Google generative AI (Content Credentials signed by Google LLC; SynthID watermark)",
   "note": "All files are AI-generated. student_06/07 were removed as byte-identical duplicates of face_08/face_02.",
   "samples": [
     {

@@ -69,6 +69,24 @@ def test_ai_metadata_cannot_be_overridden_by_llm():
     assert any("AI image generator" in n for n in r["rule_notes"])
 
 
+def test_content_credentials_declaring_ai_win_over_llm():
+    fakes = sorted((ROOT / "data" / "fake").glob("*.jpg"))
+    assert fakes
+    c2 = forensics.read_c2pa(fakes[0].read_bytes())
+    assert c2["source_types"] == ["trainedAlgorithmicMedia"] and "Google LLC" in c2["signed_by"]
+    assert c2["generator"].startswith("Google")
+    ea_call = ea.call_llm
+    ea.call_llm = lambda *a, **k: json.dumps({"manipulation_score": 0, "fake_type": "none", "confidence": "high"})
+    try:
+        for p in fakes:
+            r = ea.analyse(p.read_bytes(), p.name)
+            assert r["verdict"] == "fake" and r["fake_type"] == "ai_generated", p.name
+    finally:
+        ea.call_llm = ea_call
+    for p in sorted((ROOT / "data" / "real").glob("*.jpg")) + AUTHENTIC:
+        assert forensics.read_c2pa(p.read_bytes()) is None
+
+
 def test_llm_receives_image_and_heatmap():
     seen = {}
     ea_call = ea.call_llm
