@@ -30,19 +30,34 @@ _cascade = None
 MAX_FACES = 6
 
 
+_missing = False
+
+
 def _detector():
-    global _cascade
-    if _cascade is None and cv2 is not None:
+    """The face detector, or None when this OpenCV build doesn't include it (some OpenCV 5 builds
+    moved CascadeClassifier out): then the face step is skipped instead of failing the analysis."""
+    global _cascade, _missing
+    if _missing:
+        return None
+    if cv2 is None or not hasattr(cv2, "CascadeClassifier"):
+        _missing = True
+        return None
+    if _cascade is None:
         candidates = [_MODEL]
         data = getattr(cv2, "data", None)
         if data is not None:
             candidates.insert(0, Path(data.haarcascades) / "haarcascade_frontalface_alt.xml")
         for p in candidates:
             if p.exists():
-                c = cv2.CascadeClassifier(str(p))
+                try:
+                    c = cv2.CascadeClassifier(str(p))
+                except Exception:
+                    continue
                 if not c.empty():
                     _cascade = c
                     break
+        if _cascade is None:
+            _missing = True
     return _cascade
 
 
@@ -120,7 +135,8 @@ def _readings(gray: np.ndarray, box) -> dict:
 def analyse(img: Image.Image) -> tuple[dict, list[Image.Image], Image.Image | None]:
     """(stats, close-ups for the vision model, overlay image or None)."""
     if not available():
-        return {"status": "skipped", "detail": "Face detection needs OpenCV.", "faces": []}, [], None
+        return {"status": "skipped", "faces": [],
+                "detail": "Face detection isn't available in this OpenCV build (pip install opencv-contrib-python-headless)."}, [], None
     rgb = img.convert("RGB")
     boxes = detect(rgb)
     if not boxes:
