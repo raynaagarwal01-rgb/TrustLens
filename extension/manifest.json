@@ -1,11 +1,47 @@
 {
   "manifest_version": 3,
   "name": "TrustLens",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Right-click any image, video or text to check it for deepfakes, edits and misinformation with TrustLens on your computer.",
-  "permissions": ["contextMenus", "storage", "scripting", "activeTab"],
-  "host_permissions": ["<all_urls>"],
-  "background": { "service_worker": "background.js" },
-  "action": { "default_popup": "popup.html", "default_title": "TrustLens" },
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TrustLens"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "fact-check-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "Fact-check the selected text"
+    }
+  }
 }

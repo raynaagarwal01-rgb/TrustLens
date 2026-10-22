@@ -72,6 +72,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   startJob(job, tab);
 });
 
+// buttons inside pages (content.js), for sites that replace Chrome's right-click menu
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type === "check" && msg.job) startJob(msg.job, sender.tab);
+});
+
+// keyboard shortcut: Alt+Shift+F fact-checks the selection
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command !== "fact-check-selection" || !tab) return;
+  const text = await inTab(tab, 0, readSelection);
+  startJob({ kind: "text", text: text || "", pageUrl: tab.url || "", pageTitle: tab.title || "" }, tab);
+});
+
 // the popup's "Fact-check a message" box
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg?.type === "factcheck") {

@@ -9,6 +9,8 @@ Right-click to check what you see on any website, with TrustLens running on your
 | Selected text | Fact-check "…" with TrustLens | Claims, news coverage, published fact-checks, warning signs in the wording; campus claims are also compared with your VTOP records |
 | Empty space on a page | Fact-check this page with TrustLens | The same, for the article's text |
 
+**On WhatsApp Web and other sites that replace Chrome's right-click menu:** select text and a yellow **Fact-check** button appears next to it (or press **Alt+Shift+F**); hover a photo or video in WhatsApp Web or Telegram Web and click **Check with TrustLens**.
+
 The popup shows whether TrustLens is running and has a box for pasting a forwarded message.
 
 ## Install (developer mode, 1 minute)
