@@ -49,7 +49,8 @@ with st.sidebar:
                           and not p.stem.endswith("_gt")) if SAMPLES.exists() else []
     labels = {"(none)": None}
     for p in sample_files:
-        tag = "Tampered (CASIA)" if p.name.startswith("Tp_") else "Authentic" if p.name.startswith("Au_") else "Sample"
+        tag = ("Tampered (CASIA)" if p.name.startswith("Tp_") else "Authentic" if p.name.startswith("Au_")
+               else "AI-generated" if p.name.startswith("AI_") else "Sample")
         labels[f"{tag} · {p.name[:28]}"] = p
     choice = st.selectbox("Pick a sample", list(labels))
 

@@ -51,6 +51,13 @@ def test_no_false_alarm_on_authentic_phone_photos():
         assert any(s["check"] == "Camera metadata present" for s in r["forensic_signals"])
 
 
+def test_no_false_alarm_on_real_web_portraits():
+    real = sorted((ROOT / "data" / "real").glob("*.jpg"))
+    for p in real:
+        r = ea.analyse(p.read_bytes(), p.name, use_llm=False)
+        assert r["verdict"] == "no_evidence", (p.name, r["manipulation_score"])
+
+
 def test_ai_metadata_cannot_be_overridden_by_llm():
     ea_call = ea.call_llm
     ea.call_llm = lambda *a, **k: json.dumps({"manipulation_score": 5, "fake_type": "none", "confidence": "high"})

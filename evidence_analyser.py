@@ -173,9 +173,8 @@ def hard_rules(fx: dict, det: dict) -> tuple[int, str | None, list[str]]:
         floor = max(floor, 70)
         notes.append(f"The pretrained detector is {det['fake_probability']:.0%} confident the image is fake.")
     if "Two independent tests flag the same region" in checks:
-        floor = max(floor, 45)
+        # no minimum score: the noise map is experimental, and this fired on a real photo in testing
         ftype = ftype or "spliced_or_object_edited"
-        notes.append("Two independent pixel-level tests point at the same region.")
     if "Editing software recorded" in checks or "Modified after capture" in checks:
         floor = max(floor, 30)
         ftype = ftype or "retouched"
