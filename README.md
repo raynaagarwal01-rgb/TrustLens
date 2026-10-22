@@ -35,6 +35,8 @@ image ──► forensics.py ──────────────► signa
 | 13 AI-generated faces (`data/fake/`, made with Google's generative AI) | **13/13** identified as AI-generated from their Google-signed Content Credentials, even when the LLM was told to say "genuine" |
 | Small edited thumbnails | ELA raises hints on some untouched images too, so pixel tests are reported as *hints*, never proof |
 
+Live check with the vision LLM (Groq `qwen/qwen3.8-27b`): a **screenshot** of an AI face, which strips its Content Credentials as WhatsApp would, was still identified as AI-generated from visual analysis; a screenshot of the authentic iPhone photo came back "no evidence of manipulation found". Single trials, not a benchmark.
+
 Small sample sizes: these numbers show the pipeline works on real forgeries, not a benchmark score.
 
 ## Run it
@@ -48,7 +50,7 @@ streamlit run app.py
 Pick a demo sample in the sidebar (CASIA forgeries show the dataset's ground-truth mask next to TrustLens's heatmap) or upload your own image. Without an API key, TrustLens runs the forensic tests only.
 
 Optional:
-- `LLM_PROVIDER=groq` with `GROQ_API_KEY` and a vision-capable `LLM_MODEL`
+- `LLM_PROVIDER=groq` with `GROQ_API_KEY` and a vision-capable `LLM_MODEL` (tested with `qwen/qwen3.8-27b`)
 - `DETECTOR_MODEL=<huggingface model id>` plus `pip install transformers torch` to add a pretrained AI-image/deepfake classifier
 
 ## Synthetic Face Dataset & Model Training
