@@ -22,6 +22,7 @@ import os
 
 from PIL import Image
 
+import advanced
 import forensics
 from llm import call_llm, parse_json
 
@@ -34,13 +35,14 @@ BANDS = [  # (min score, verdict key, label)
     (0, "no_evidence", "No evidence of manipulation found"),
 ]
 FAKE_TYPES = ["ai_generated", "face_swap_or_deepfake", "spliced_or_object_edited",
-              "document_or_text_edited", "retouched", "none", "unknown"]
+              "document_or_text_edited", "retouched", "edited", "none", "unknown"]
 TYPE_LABELS = {
     "ai_generated": "AI-generated image",
     "face_swap_or_deepfake": "Face swap / deepfake",
     "spliced_or_object_edited": "Spliced or edited region",
     "document_or_text_edited": "Edited document or text",
     "retouched": "Retouched / filtered",
+    "edited": "Edited (type unclear)",
     "none": "None detected",
     "unknown": "Unclear",
 }
@@ -193,6 +195,18 @@ def hard_rules(fx: dict, det: dict) -> tuple[int, str | None, list[str]]:
         floor = max(floor, 75)
         ftype = ftype or "spliced_or_object_edited"
         notes.append("The camera's embedded preview shows a different version of part of the image.")
+    if "Content Credentials fail verification" in checks:
+        floor = max(floor, 75)
+        ftype = ftype or "edited"
+        notes.append("The image no longer matches its signed Content Credentials: it changed after signing.")
+    cm = checks.get("Cloned area (copy-move)")
+    if cm and cm["severity"] in ("medium", "high"):
+        floor = max(floor, 70 if cm["severity"] == "high" else 45)
+        ftype = ftype or "spliced_or_object_edited"
+        notes.append("Part of the image is a copy of another part (copy-move).")
+    if "Shifted JPEG grid" in checks:
+        floor = max(floor, 30)
+        ftype = ftype or "retouched"
     if "Image cropped after capture" in checks:
         floor = max(floor, 30)
         ftype = ftype or "retouched"
@@ -229,6 +243,13 @@ def _clean_findings(items) -> list[dict]:
 
 def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict:
     fx = forensics.analyse_image(data, filename)
+    try:
+        raw = Image.open(io.BytesIO(data)).convert("RGB")
+        adv_stats, adv_signals, adv_images = advanced.run_all(fx["images"]["original"], data, fx["jpeg_quality"], raw)
+    except Exception as e:
+        adv_stats, adv_signals, adv_images = {"error": f"{type(e).__name__}: {e}"}, [], {}
+    fx["signals"] += adv_signals
+    fx["images"].update(adv_images)
     det = run_detector(fx["images"]["original"])
     floor, forced_type, rule_notes = hard_rules(fx, det)
 
@@ -295,6 +316,7 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True) -> dict
             "If this targets you or someone you know, save this report and report it at cybercrime.gov.in or call 1930.",
         ],
         "detector": det,
+        "advanced": adv_stats,
         "integrity": fx["integrity"],
         "gps": fx.get("gps"),
         "thumbnail": fx.get("thumbnail"),

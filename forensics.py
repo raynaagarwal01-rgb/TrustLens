@@ -21,6 +21,7 @@ Forensics can show evidence of editing; it can never prove an image is authentic
 import datetime as dt
 import hashlib
 import io
+import json
 import re
 
 import numpy as np
@@ -137,13 +138,47 @@ def read_c2pa(data: bytes) -> dict | None:
         org = data[m.end(): m.end() + m.group(1)[0]].decode("utf-8", "replace")
         if org not in orgs:
             orgs.append(org)
+    ingredients = []
+    for m in re.finditer(r"dc:title.{0,3}?([\x20-\x7e]{3,100}?)(?=[^\x20-\x7e])", text):
+        t = re.sub(r'^[a-z]?"', "", m.group(1)).strip()
+        if t and t not in ingredients:
+            ingredients.append(t)
     return {
         "source_types": source_types,
+        "ingredients": ingredients[:6],
         "actions": actions[:5],
         "generator": re.sub(r'^[a-z]?"', "", gen.group(1)).strip() if gen else "",
         "signed_by": orgs[:3],
         "watermark": "SynthID" if b"SynthID" in data else "",
     }
+
+
+def verify_c2pa(data: bytes, fmt: str | None) -> dict:
+    """Cryptographic check with the official C2PA library (pip install c2pa-python), when installed.
+    validation_state: 'Trusted' (valid, signer on the trust list), 'Valid' (valid signature, signer not
+    on the trust list) or 'Invalid' (e.g. the image changed after signing)."""
+    try:
+        import c2pa  # type: ignore
+    except Exception:
+        return {"status": "unavailable", "detail": "Install c2pa-python to verify signatures."}
+    mime = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "TIFF": "image/tiff"}.get(fmt or "", "image/jpeg")
+    try:
+        with c2pa.Reader(mime, io.BytesIO(data)) as reader:
+            store = json.loads(reader.json())
+            state = reader.get_validation_state() or store.get("validation_state")
+    except Exception as e:
+        return {"status": "error", "detail": f"{type(e).__name__}: {str(e)[:160]}"}
+    results = store.get("validation_results") or {}
+    active = results.get("activeManifest") or {}
+    failures = [f"{x.get('code')}: {x.get('explanation', '')}" for x in active.get("failure", [])]
+    failures += [f"{x.get('code')}: {x.get('explanation', '')}" for x in store.get("validation_status", [])
+                 if "fail" in str(x.get("code", "")).lower() or "mismatch" in str(x.get("code", "")).lower()]
+    manifest = (store.get("manifests") or {}).get(store.get("active_manifest", ""), {})
+    sig = manifest.get("signature_info") or {}
+    return {"status": "ok", "state": state, "failures": failures[:6],
+            "issuer": sig.get("issuer", ""), "signed_at": sig.get("time", ""),
+            "title": manifest.get("title", ""),
+            "ingredients": [i.get("title", "") for i in manifest.get("ingredients", [])][:6]}
 
 
 def metadata(data: bytes, img: Image.Image) -> tuple[dict, list[dict]]:
@@ -167,6 +202,12 @@ def metadata(data: bytes, img: Image.Image) -> tuple[dict, list[dict]]:
         signals.append(_signal("AI generator trace in metadata", "high",
                                f"The file's metadata contains {what}, which AI image generators write.", "ai"))
     if c2pa:
+        c2pa_info["verification"] = verify_c2pa(data, img.format)
+        ver = c2pa_info["verification"]
+        if ver.get("status") == "ok" and (ver.get("state") == "Invalid" or ver.get("failures")):
+            signals.append(_signal("Content Credentials fail verification", "high",
+                                   "The official C2PA check reports: " + "; ".join(ver["failures"][:3] or ["invalid"])
+                                   + ". The usual cause is the image being changed after it was signed.", "edited"))
         ai_types = [t for t in c2pa_info["source_types"] if t in AI_SOURCE_TYPES]
         who = ", ".join(c2pa_info["signed_by"]) or "an unknown signer"
         said = "; ".join(f"'{a}'" for a in c2pa_info["actions"][:3])
@@ -177,8 +218,9 @@ def metadata(data: bytes, img: Image.Image) -> tuple[dict, list[dict]]:
                                    f"(digital source type: {', '.join(ai_types)})" + (f": {said}" if said else "")
                                    + (". They also record an invisible SynthID watermark"
                                       if c2pa_info["watermark"] and "SynthID" not in said else "")
-                                   + ". TrustLens reads but does not cryptographically verify the signature; "
-                                   "verify at contentcredentials.org/verify.", "ai"))
+                                   + (f". Signature check: {ver['state']}." if ver.get("status") == "ok" else
+                                      ". TrustLens read the manifest but could not check its signature (install "
+                                      "c2pa-python, or verify at contentcredentials.org/verify)."), "ai"))
         else:
             signals.append(_signal("Content Credentials (C2PA) present", "info",
                                    f"The file carries a provenance manifest signed by {who}"

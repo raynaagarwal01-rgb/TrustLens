@@ -4,3 +4,5 @@ streamlit
 google-genai
 requests
 # optional: groq, transformers, torch
+opencv-python-headless
+# optional: c2pa-python (Content Credentials signature verification)
