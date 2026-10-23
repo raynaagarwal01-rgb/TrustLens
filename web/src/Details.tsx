@@ -64,7 +64,7 @@ function SignalRow({ s }: { s: Signal }) {
   );
 }
 
-/** The DFDC-winning face-swap detector: one score, and one bar per video frame. */
+/** The face-swap detector: one score, and one bar per video frame. */
 function SwapPanel({ r }: { r: CaseResult }) {
   const fs = r.face_swap;
   if (!fs) return null;
@@ -72,7 +72,7 @@ function SwapPanel({ r }: { r: CaseResult }) {
     return (
       <section className="swap swap--off">
         <h3>Face-swap detector</h3>
-        <p className="muted">{fs.error ? `Didn't run: ${fs.error}` : <>Not installed on this computer. Run <span className="mono">python tools/get_dfdc_model.py</span> once to add the model that won Facebook's Deepfake Detection Challenge.</>}</p>
+        <p className="muted">{fs.error ? `Didn't run: ${fs.error}` : <>Not installed on this computer. Run <span className="mono">python tools/get_face_model.py</span> once to add the face-swap model.</>}</p>
       </section>
     );
   }
@@ -84,7 +84,7 @@ function SwapPanel({ r }: { r: CaseResult }) {
       <div className="swap__head">
         <div>
           <h3>Face-swap detector</h3>
-          <p className="muted">EfficientNet-B7 that won Facebook's Deepfake Detection Challenge (1st of 2,265 teams), run on {video ? `${fs.n} frames with a face` : "the face"} in {fs.seconds}s.</p>
+          <p className="muted">EfficientNet-B7 trained on about 100,000 deepfake videos, run on {video ? `${fs.n} frames with a face` : "the face"} in {fs.seconds}s.</p>
         </div>
         <p className="swap__score"><b>{Math.min(99, Math.round(score * 100))}%</b><span>{tone === "bad" ? "swapped face" : tone === "warn" ? "possible swap" : score >= 0.2 ? "below the line: not flagged" : "no swap found"}</span></p>
       </div>

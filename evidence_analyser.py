@@ -279,7 +279,7 @@ def analyse(data: bytes, filename: str = "upload", use_llm: bool = True, face_mo
     fx["faces"] = face_stats
     det = run_detector(fx["images"]["original"])
     floor, forced_type, rule_notes = hard_rules(fx, det)
-    import face_swap  # the DFDC-winning face-swap detector, in parallel with the AI review
+    import face_swap  # the pretrained face-swap detector, in parallel with the AI review
     swap_job = face_swap.start_image(fx["images"]["original"], faces.detect(fx["images"]["original"])) \
         if face_model and faces.available() else None
 

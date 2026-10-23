@@ -336,7 +336,7 @@ def _analyse(data: bytes, filename: str, path: str, use_llm: bool) -> dict:
 
     motion = _outside_motion(frames)
 
-    # the DFDC-winning face-swap detector runs on every frame with a face, alongside the AI review
+    # the pretrained face-swap detector runs on every frame with a face, alongside the AI review
     import face_swap
     swap_job = face_swap.start_frames(frames)
 

@@ -22,7 +22,7 @@ async function refresh() {
     $("status").replaceChildren(
       line("TrustLens is running", "on"),
       line(st.llm.configured ? `AI review: on (${st.llm.provider})` : "AI review: off (add a key to .env)", st.llm.configured ? "on" : "off"),
-      line(st.face_swap_model ? "Face-swap model: on (DFDC winner)" : "Face-swap model: not installed", st.face_swap_model ? "on" : "off"));
+      line(st.face_swap_model ? "Face-swap model: on" : "Face-swap model: not installed", st.face_swap_model ? "on" : "off"));
   } catch {
     $("status").replaceChildren(line("TrustLens isn't running. Start it with: python server.py", "off"));
   }

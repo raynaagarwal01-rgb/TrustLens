@@ -1,14 +1,13 @@
 """
-dfdc_model.py — the winning model of Facebook's Deepfake Detection Challenge (DFDC, 2020), run without PyTorch.
+face_model.py — a pretrained face-swap classifier, run without PyTorch.
 
-Model: Selim Seferbekov's EfficientNet-B7 face classifier, 1st place of 2,265 teams
-(github.com/selimsef/dfdc_deepfake_challenge, MIT licence). Trained on the DFDC dataset:
-about 100,000 face-swap and face-reenactment videos of 3,426 paid actors.
+Model: an EfficientNet-B7 face classifier by Selim Seferbekov (MIT licence), trained on about
+100,000 face-swap and face-reenactment videos.
 
 The network is re-implemented here in numpy (BatchNorm folded into the convolutions), so the only
-extra download is the official checkpoint; `python tools/get_dfdc_model.py` fetches and converts it.
+extra download is the official checkpoint; `python tools/get_face_model.py` fetches and converts it.
 
-What it is good at: face swaps and reenactment in real-looking video, the DFDC kinds of fake.
+What it is good at: face swaps and reenactment in real-looking video.
 What it was never trained on: fully AI-generated faces and images, talking-head animation of a photo.
 """
 
@@ -22,8 +21,12 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).parent
-MODEL_DIR = Path(os.getenv("DFDC_MODEL_DIR", ROOT / "models" / "dfdc"))
-NPZ = MODEL_DIR / "dfdc_b7_111_36.npz"
+MODEL_DIR = Path(os.getenv("FACE_MODEL_DIR", ROOT / "models" / "face_swap"))
+NPZ = MODEL_DIR / "face_swap_b7.npz"
+_OLD = ROOT / "models" / "dfdc" / "dfdc_b7_111_36.npz"  # where older installs saved it
+if not NPZ.exists() and _OLD.exists():
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    _OLD.replace(NPZ)
 SOURCE_URL = ("https://github.com/selimsef/dfdc_deepfake_challenge/releases/download/0.0.1/"
               "final_111_DeepFakeClassifier_tf_efficientnet_b7_ns_0_36")
 INPUT = 380
@@ -165,7 +168,7 @@ def model() -> Classifier:
 # ---------------------------------------------------------------------------
 
 def crop_face(rgb: np.ndarray, box) -> np.ndarray:
-    """Face box [x0, y0, x1, y1] plus a third of its size on every side, as the DFDC solution crops."""
+    """Face box [x0, y0, x1, y1] plus a third of its size on every side, as the model was trained."""
     x, y = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
     pw, ph = w // 3, h // 3
@@ -188,7 +191,7 @@ def fake_probability(face_rgb: np.ndarray) -> float:
 
 
 def confident_strategy(pred: list[float], t: float = 0.8) -> float:
-    """The winning solution's video score: trust a confident majority of frames, otherwise average."""
+    """Video score: trust a confident majority of frames, otherwise average."""
     p = np.asarray(pred)
     fakes = int(np.count_nonzero(p > t))
     if fakes > len(p) // 2.5 and fakes > 11:

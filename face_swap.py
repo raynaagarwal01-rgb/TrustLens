@@ -1,5 +1,5 @@
 """
-face_swap.py — run the DFDC-winning face-swap detector (dfdc_model.py) on faces in photos and video frames,
+face_swap.py — run the pretrained face-swap detector (face_model.py) on faces in photos and video frames,
 and turn its output into evidence: a signal, and a verdict floor when it is confident.
 
 Measured here before it was allowed to decide anything (details in README):
@@ -18,23 +18,23 @@ import time
 
 import numpy as np
 
-import dfdc_model
+import face_model
 import forensics
 
-NAME = "Face-swap detector (DFDC winner)"
+NAME = "Face-swap detector"
 MAX_FRAMES = 8
 FAKE = 0.8
 
 
 def _face_p(image, box) -> float:
     with np.errstate(over="ignore"):
-        return dfdc_model.fake_probability(dfdc_model.crop_face(np.asarray(image.convert("RGB")), box))
+        return face_model.fake_probability(face_model.crop_face(np.asarray(image.convert("RGB")), box))
 
 
 def _summarise(rows: list[dict], seconds: float) -> dict:
     ps = [r["p"] for r in rows]
-    return {"available": True, "model": "EfficientNet-B7, 1st of 2,265 teams in Facebook's Deepfake Detection Challenge",
-            "frames": rows, "n": len(ps), "score": round(dfdc_model.confident_strategy(ps), 3) if ps else None,
+    return {"available": True, "model": "EfficientNet-B7 trained on about 100,000 deepfake videos",
+            "frames": rows, "n": len(ps), "score": round(face_model.confident_strategy(ps), 3) if ps else None,
             "fake_frames": sum(p > FAKE for p in ps), "seconds": round(seconds, 1)}
 
 
@@ -42,7 +42,7 @@ def check_image(image, boxes) -> dict | None:
     """Largest face of a photo. None when there's no face; {'available': False} when the model isn't installed."""
     if not boxes:
         return None
-    if not dfdc_model.available():
+    if not face_model.available():
         return {"available": False}
     t0 = time.perf_counter()
     try:
@@ -69,7 +69,7 @@ def start_frames(frames: list[dict]):
     todo = [f for f in frames if f.get("faces")]
     if not todo:
         return None
-    if not dfdc_model.available():
+    if not face_model.available():
         return {"result": {"available": False}}
     if len(todo) > MAX_FRAMES:
         todo = [todo[int(round(x))] for x in np.linspace(0, len(todo) - 1, MAX_FRAMES)]
@@ -103,7 +103,7 @@ def finish(job) -> dict | None:
 def verdict_inputs(swap: dict, video: bool) -> tuple[dict, str, int]:
     """(signal, rule note or '', verdict floor) for one result of this detector."""
     if not swap.get("available"):
-        detail = ("Not installed on this computer: run python tools/get_dfdc_model.py once (downloads the "
+        detail = ("Not installed on this computer: run python tools/get_face_model.py once (downloads the "
                   "official 267 MB checkpoint)." if not swap.get("error") else f"Didn't run: {swap['error']}")
         return forensics._signal(NAME, "info", detail), "", 0
     n, score, fake = swap["n"], swap["score"], swap["fake_frames"]
@@ -113,7 +113,7 @@ def verdict_inputs(swap: dict, video: bool) -> tuple[dict, str, int]:
     else:
         confident = score >= 0.9
     if confident:
-        note = (f"The face-swap detector that won Facebook's Deepfake Detection Challenge found a swapped face "
+        note = (f"The face-swap detector found a swapped face "
                 f"({where}; fake probability {score:.0%}).")
         detail = (f"{note} Measured on known clips: face-swap videos scored 99%, real videos and portraits 1–2%. "
                   f"Took {swap['seconds']} s.")

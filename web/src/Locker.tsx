@@ -113,7 +113,7 @@ export function Locker({ open, status, cases, batches, samples, currentId, ai, o
         <div className="locker__status" aria-label="System status">
           <div><span className={status.llm.configured ? "ok" : "off"}>●</span>AI review: {status.llm.configured ? cap(status.llm.provider) : "off (add key to .env)"}</div>
           <div><span className={status.opencv && status.faces ? "ok" : "off"}>●</span>Clones and faces: {status.opencv ? (status.faces ? "on" : "no face model") : "needs OpenCV"}</div>
-          <div title={status.face_swap_model ? "EfficientNet-B7 that won Facebook's Deepfake Detection Challenge" : "Run: python tools/get_dfdc_model.py"}><span className={status.face_swap_model ? "ok" : "off"}>●</span>Face-swap model: {status.face_swap_model ? "on (DFDC winner)" : "not installed"}</div>
+          <div title={status.face_swap_model ? "EfficientNet-B7 trained on about 100,000 deepfake videos" : "Run: python tools/get_face_model.py"}><span className={status.face_swap_model ? "ok" : "off"}>●</span>Face-swap model: {status.face_swap_model ? "on" : "not installed"}</div>
           <div><span className={status.ffmpeg ? "ok" : "off"}>●</span>Video and audio: {status.ffmpeg ? "on" : "needs ffmpeg"}</div>
           <div><span className={status.pdf ? "ok" : "off"}>●</span>Signed PDF: {status.pdf ? `on (${status.signing})` : "needs reportlab"}</div>
           <div><span className={status.vtop.snapshots.length || status.vtop.cli_top_found ? "ok" : "off"}>●</span>VTOP: {status.vtop.cli_top_found ? "connected" : status.vtop.snapshots.length ? `${status.vtop.snapshots.length} snapshots` : "not connected"}</div>

@@ -15,5 +15,6 @@ keys/
 .trustlens_models.json
 demo_backup/
 
-# DFDC face-swap model: downloaded by tools/get_dfdc_model.py
+# face-swap model: downloaded by tools/get_face_model.py (older installs used the second folder)
+models/face_swap/
 models/dfdc/

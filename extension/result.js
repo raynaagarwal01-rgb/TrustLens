@@ -96,7 +96,7 @@ function caseView(r, base) {
   const fs = r.face_swap;
   const swap = fs && fs.available && h("section", {},
     h("h2", {}, `Face-swap detector: ${pct(fs.score ?? 0)} ${(fs.score ?? 0) > 0.8 ? "swapped face" : (fs.score ?? 0) >= 0.5 ? "possible swap" : "not flagged"}`),
-    h("p", { class: "muted" }, "EfficientNet-B7 that won Facebook's Deepfake Detection Challenge. It catches face swaps; a low score doesn't clear AI-generated faces."),
+    h("p", { class: "muted" }, "EfficientNet-B7 trained on about 100,000 deepfake videos. It catches face swaps; a low score doesn't clear AI-generated faces."),
     fs.frames && fs.frames.length > 1 && h("div", { class: "swapbars", role: "img", "aria-label": fs.frames.map((f) => `${f.label} ${pct(f.p)}`).join(", ") },
       fs.frames.map((f) => h("i", { class: f.p > 0.8 ? "bad" : f.p >= 0.5 ? "warn" : "", style: `height:${Math.max(4, f.p * 100)}%`, title: `${f.label}: ${pct(f.p)}` }))));
   return [

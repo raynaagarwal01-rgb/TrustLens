@@ -34,7 +34,7 @@ from starlette.staticfiles import StaticFiles
 import advanced
 import batch
 import campus_check
-import dfdc_model
+import face_model
 import custody
 import event_check
 import evidence_analyser as ea
@@ -296,7 +296,7 @@ async def status(request: Request):
         "llm": {"provider": provider, "configured": bool(key), "model": os.getenv("LLM_MODEL", "")},
         "opencv": advanced.cv2 is not None,
         "faces": faces.available(),
-        "face_swap_model": dfdc_model.available(),
+        "face_swap_model": face_model.available(),
         "ffmpeg": bool(media.ffmpeg_path()),
         "pdf": pdf_ok,
         "signing": signing.signer().mode,
@@ -986,8 +986,8 @@ if __name__ == "__main__":
     config = uvicorn.Config(app, host=host, port=port, log_level="warning", timeout_graceful_shutdown=1)
     print(f"TrustLens is running at http://127.0.0.1:{port}  (press Ctrl+C to stop)", flush=True)
     print(envfile.ai_review_status()[1], flush=True)
-    print("Face-swap model (DFDC winner): " + ("on" if dfdc_model.available() else
-          "not installed. Run once: python tools/get_dfdc_model.py"), flush=True)
+    print("Face-swap model: " + ("on" if face_model.available() else
+          "not installed. Run once: python tools/get_face_model.py"), flush=True)
     if LAN["on"]:
         print(f"Phone access: ON. Press 'Use on your phone' in TrustLens and scan the QR code ({lan_ip()}:{port}).", flush=True)
         print("  If Windows asks whether to allow Python on networks, choose Allow (private networks).", flush=True)
