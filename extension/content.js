@@ -20,7 +20,8 @@
   </style>
   <button id="text" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="#14202b" stroke-width="2.6"><circle cx="10" cy="10" r="6"/><path d="M15 15l5 5"/></svg>Fact-check</button>
   <button id="media" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="#14202b" stroke-width="2.6"><circle cx="10" cy="10" r="6"/><path d="M15 15l5 5"/></svg>Check with TrustLens</button>`;
-  (document.body || document.documentElement).append(host);
+  const attach = () => { if (!host.isConnected) (document.body || document.documentElement).append(host); };
+  attach();
   const textBtn = root.getElementById("text");
   const mediaBtn = root.getElementById("media");
   const MEDIA_HTML = mediaBtn.innerHTML;
@@ -32,7 +33,8 @@
   function showForSelection() {
     const sel = window.getSelection();
     const text = String(sel || "").trim();
-    if (text.length < 20 || !sel.rangeCount) { textBtn.style.display = "none"; return; }
+    if (text.length < 12 || !sel.rangeCount) { textBtn.style.display = "none"; return; }
+    attach();
     const rect = sel.getRangeAt(sel.rangeCount - 1).getBoundingClientRect();
     if (!rect.width && !rect.height) return;
     selected = text;
@@ -41,12 +43,22 @@
     textBtn.style.top = `${Math.max(4, top)}px`;
     textBtn.style.left = `${Math.min(innerWidth - 130, Math.max(4, rect.right - 110))}px`;
   }
-  document.addEventListener("mouseup", (e) => { if (!e.composedPath().includes(host)) setTimeout(showForSelection, 10); }, true);
-  document.addEventListener("keyup", (e) => { if (e.shiftKey || e.key === "Shift") showForSelection(); }, true);
-  document.addEventListener("selectionchange", () => { if (!String(window.getSelection()).trim()) textBtn.style.display = "none"; });
+  let selTimer = 0;
+  const later = () => { clearTimeout(selTimer); selTimer = setTimeout(showForSelection, 250); };
+  document.addEventListener("selectionchange", () => {
+    if (!String(window.getSelection()).trim()) { textBtn.style.display = "none"; return; }
+    later();
+  });
+  for (const ev of ["mouseup", "pointerup", "keyup"]) {
+    window.addEventListener(ev, (e) => { if (!e.composedPath().includes(host)) later(); }, true);
+  }
   addEventListener("scroll", () => { textBtn.style.display = "none"; }, true);
-  textBtn.addEventListener("mousedown", (e) => e.preventDefault()); // keep the selection
-  textBtn.addEventListener("click", () => { textBtn.style.display = "none"; send({ kind: "text", text: selected }); });
+  // act on press, not click: some pages and extensions swallow mouseup, so a click never arrives
+  let fired = 0;
+  const once = (fn) => (e) => { e.preventDefault(); e.stopPropagation(); if (Date.now() - fired < 800) return; fired = Date.now(); fn(); };
+  const checkText = once(() => { textBtn.style.display = "none"; send({ kind: "text", text: selected }); });
+  for (const ev of ["pointerdown", "mousedown", "click"]) textBtn.addEventListener(ev, checkText);
+  textBtn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") checkText(e); });
 
   // ------------------------------------------------------------------ images and videos on chat sites
   async function grab(src) {
@@ -58,7 +70,7 @@
     } catch { return { grabError: "blob" }; }
   }
   if (CHAT_SITE) {
-    document.addEventListener("mouseover", (e) => {
+    const onOver = (e) => {
       const el = e.target.closest?.("img, video");
       if (!el || e.composedPath().includes(host)) return;
       const r = el.getBoundingClientRect();
@@ -68,13 +80,19 @@
       mediaBtn.style.display = "inline-flex";
       mediaBtn.style.top = `${Math.max(4, r.top + 8)}px`;
       mediaBtn.style.left = `${Math.max(4, r.left + 8)}px`;
-    }, true);
+      attach();
+    };
+    window.addEventListener("mouseover", onOver, true);
+    window.addEventListener("pointerover", onOver, true);
     document.addEventListener("mouseout", (e) => {
       if (e.target === target) hideTimer = setTimeout(() => { mediaBtn.style.display = "none"; }, 600);
     }, true);
     mediaBtn.addEventListener("mouseenter", () => clearTimeout(hideTimer));
-    mediaBtn.addEventListener("click", async () => {
-      if (!target) return;
+    let mFired = 0;
+    const checkMedia = async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!target || Date.now() - mFired < 800) return;
+      mFired = Date.now();
       const kind = target.tagName === "VIDEO" ? "video" : "image";
       const src = target.currentSrc || target.src;
       mediaBtn.textContent = "Reading…";
@@ -82,6 +100,7 @@
       mediaBtn.style.display = "none";
       mediaBtn.innerHTML = MEDIA_HTML;
       send({ kind, srcUrl: src, ...extra });
-    });
+    };
+    for (const ev of ["pointerdown", "mousedown", "click"]) mediaBtn.addEventListener(ev, checkMedia);
   }
 })();
